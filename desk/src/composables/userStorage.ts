@@ -7,7 +7,7 @@ export function userStorage<T>(key: string, fallback: T) {
   return useStorage<T>(`${key}:${sessionUserId()}`, fallback);
 }
 
-function sessionUserId(): string {
+export function sessionUserId(): string {
   const cookies = new URLSearchParams(document.cookie.split("; ").join("&"));
   return cookies.get("user_id") || "guest";
 }

@@ -155,6 +155,7 @@ export interface Communication {
   bcc?: string;
   cc?: string;
   sent_or_received?: "Sent" | "Received";
+  communication_medium?: string;
   email_account?: string;
   sender_full_name?: string;
   sender_mail_id?: string;
@@ -361,6 +362,7 @@ export interface EmailAccount {
 export type TicketTab =
   | "activity"
   | "email"
+  | "chat"
   | "comment"
   | "details"
   | "call"
@@ -497,9 +499,20 @@ export interface FeedbackActivity {
   key: string;
 }
 
+export interface ChatActivity extends BaseActivity {
+  type: "chat";
+  name: string;
+  direction: "incoming" | "outgoing";
+  sender: { full_name: string; name: string };
+  channel: { key: string; label: string; icon: string | null };
+  outbound: import("@/composables/ticketChannel/logic").OutboundRow | null;
+  attachments: FileAttachment[];
+}
+
 export type TicketActivity =
   | HistoryActivity
   | EmailActivity
+  | ChatActivity
   | CommentActivity
   | CallActivity
   | FeedbackActivity;
@@ -651,6 +664,8 @@ export interface TicketActivities {
   communications: Communication[];
   history: Activity[];
   views: ViewLog[];
+  // Present only when an installed app owns the ticket's conversation channel
+  channel?: import("@/composables/ticketChannel/logic").ChannelDescriptor;
 }
 
 
