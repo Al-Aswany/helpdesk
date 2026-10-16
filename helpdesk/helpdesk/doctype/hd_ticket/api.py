@@ -9,7 +9,7 @@ from frappe.utils import get_user_info_for_avatar, now_datetime
 from frappe.utils.caching import redis_cache
 from pypika import Criterion, Order
 
-from helpdesk.api.channel import get_ticket_channel
+from helpdesk.api.channel import get_ticket_channel, is_technical_identity
 from helpdesk.api.doc import handle_at_me_support
 from helpdesk.consts import DEFAULT_TICKET_TEMPLATE
 from helpdesk.helpdesk.doctype.hd_form_script.hd_form_script import get_form_script
@@ -670,6 +670,18 @@ def get_ticket_contact(ticket: str):
             ["name", "email_id", "phone", "mobile_no", "image"],
             as_dict=1,
         )
+    elif is_technical_identity(raised_by):
+        # A technical placeholder address is not a person's email. Show the
+        # name the channel provider holds for this conversation, never the
+        # placeholder or its local part.
+        who = ((get_ticket_channel(ticket) or {}).get("contact")) or {}
+        data = {
+            "email_id": "",
+            "name": who.get("name") or who.get("identity") or _("Customer"),
+            "phone": "",
+            "mobile_no": "",
+            "image": "",
+        }
     else:
         data = {
             "email_id": raised_by,

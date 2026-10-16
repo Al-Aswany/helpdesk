@@ -40,6 +40,7 @@ _OUTBOUND_FIELDS = (
     "error_summary",
     "communication",
     "body",
+    "requested_by",
     "creation",
     "queued_at",
     "sending_started_at",
@@ -72,7 +73,12 @@ def registered_providers() -> dict[str, str]:
     for key, value in declared.items():
         if isinstance(value, list | tuple):
             value = value[-1] if value else None
-        if isinstance(key, str) and KEY_PATTERN.match(key) and isinstance(value, str) and value:
+        if (
+            isinstance(key, str)
+            and KEY_PATTERN.match(key)
+            and isinstance(value, str)
+            and value
+        ):
             providers[key] = value
     return providers
 
@@ -117,7 +123,9 @@ def get_ticket_channel(ticket: str) -> dict | None:
                 title="Ticket channel provider failed",
                 message=f"provider={key} ticket={ticket}\n{frappe.get_traceback()}",
             )
-            if is_technical_identity(frappe.db.get_value("HD Ticket", ticket, "raised_by")):
+            if is_technical_identity(
+                frappe.db.get_value("HD Ticket", ticket, "raised_by")
+            ):
                 return clean_descriptor(
                     key, {"status": "unavailable", "reason": "lookup_failed"}
                 )
@@ -219,7 +227,9 @@ def get_channel(ticket: str, channel: str) -> dict | None:
 
 
 @frappe.whitelist(methods=["POST"])
-def send_channel_reply(ticket: str, channel: str, message: str, request_id: str) -> dict:
+def send_channel_reply(
+    ticket: str, channel: str, message: str, request_id: str
+) -> dict:
     """Hand one public reply to the ticket's channel provider.
 
     Rendering and polling never reach this function. The provider decides the
@@ -229,8 +239,12 @@ def send_channel_reply(ticket: str, channel: str, message: str, request_id: str)
     frappe.has_permission("HD Ticket", "write", ticket, throw=True)
     provider = load_provider(channel)
     if not provider:
-        frappe.throw(_("This conversation channel is not available."), frappe.ValidationError)
-    result = provider.send_ticket_reply(ticket=ticket, message=message, request_id=request_id)
+        frappe.throw(
+            _("This conversation channel is not available."), frappe.ValidationError
+        )
+    result = provider.send_ticket_reply(
+        ticket=ticket, message=message, request_id=request_id
+    )
     if not isinstance(result, dict):
         frappe.throw(_("The reply was not saved."), frappe.ValidationError)
     return {field: result.get(field) for field in _RESULT_FIELDS}

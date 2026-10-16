@@ -1,9 +1,11 @@
 from datetime import datetime
+from unittest.mock import patch
 
 import frappe
 from frappe.core.doctype.communication.test_communication import create_email_account
 from frappe.utils import add_to_date, getdate
 
+from helpdesk.api import channel
 from helpdesk.api.settings.field_dependency import create_update_field_dependency
 from helpdesk.consts import DEFAULT_SLA
 from helpdesk.integrations.erpnext.utils import create_customer_field
@@ -640,3 +642,8 @@ def upload_test_file(file_name: str) -> str:
         }
     ).insert(ignore_permissions=True)
     return file_doc.name
+
+
+def patch_channel_providers(module: str, key: str = "fake"):
+    """Return a patch that registers `module` as the only ticket channel provider under `key`."""
+    return patch.object(channel, "registered_providers", return_value={key: module})
