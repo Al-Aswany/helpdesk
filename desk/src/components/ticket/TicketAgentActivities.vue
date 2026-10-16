@@ -20,20 +20,16 @@
             class="relative flex justify-center after:absolute after:start-[50%] after:top-3 after:-z-10 after:border-s after:border-outline-elevation-2"
             :class="[
               i != activities.length - 1 && 'after:h-full',
-              !['email', 'feedback', 'call', 'comment'].includes(
-                activity.type
-              ) && 'after:top-6',
+              !isCardActivity(activity.type) && 'after:top-6',
             ]"
           >
             <div
               class="z-1 flex items-center justify-center rounded-full bg-surface-base"
               :class="[
-                ['email', 'feedback'].includes(activity.type)
+                ['email', 'feedback', 'chat'].includes(activity.type)
                   ? 'my-1 h-9 w-9'
                   : 'h-6 w-6',
-                !['email', 'feedback', 'call', 'comment'].includes(
-                  activity.type
-                ) && 'mt-[2px]',
+                !isCardActivity(activity.type) && 'mt-[2px]',
               ]"
             >
               <Avatar
@@ -41,6 +37,18 @@
                 size="lg"
                 :label="activity.sender?.full_name"
                 :image="getUser(activity.sender?.name).user_image"
+                class="bg-surface-base absolute start-[0.7px]"
+              />
+              <!-- Chat: only the agent has a user record; the customer is a name -->
+              <Avatar
+                v-else-if="activity.type === 'chat'"
+                size="lg"
+                :label="activity.sender?.full_name || activity.channel.label"
+                :image="
+                  activity.direction === 'outgoing' && activity.sender?.name
+                    ? getUser(activity.sender.name).user_image
+                    : undefined
+                "
                 class="bg-surface-base absolute start-[0.7px]"
               />
               <CommentIcon
@@ -66,9 +74,7 @@
             class="mb-4 flex flex-1"
             :class="[
               i == activities.length - 1 && 'mb-5',
-              !['email', 'feedback', 'call', 'comment'].includes(
-                activity.type
-              ) && 'mt-[2px]',
+              !isCardActivity(activity.type) && 'mt-[2px]',
             ]"
           >
             <EmailArea
@@ -79,6 +85,13 @@
               "
               class="py-2 px-3"
               @reply="(e) => emit('email:reply', e)"
+            />
+            <ChannelMessageArea
+              v-else-if="activity.type === 'chat'"
+              :activity="activity"
+              :reusable="canReuseText"
+              class="py-2 px-3"
+              @reuse="reuseText"
             />
             <CommentBox
               v-else-if="activity.type === 'comment'"
@@ -110,6 +123,7 @@
 
 <script setup lang="ts">
 import { FadedScrollableDiv } from "@/components";
+import ChannelMessageArea from "@/components/channel/ChannelMessageArea.vue";
 import CommentBox from "@/components/CommentBox.vue";
 import EmailArea from "@/components/EmailArea.vue";
 import HistoryBox from "@/components/HistoryBox.vue";
@@ -120,11 +134,14 @@ import {
   EmailIcon,
   PhoneIcon,
 } from "@/components/icons";
+import { useTicketChannel } from "@/composables/ticketChannel";
+import { showCommentBox, showEmailBox } from "@/pages/ticket/modalStates";
 import { useUserStore } from "@/stores/user";
-import { TicketActivity } from "@/types";
+import { TicketActivity, TicketSymbol } from "@/types";
 import { isElementInViewport } from "@/utils";
 import { Avatar, FeatherIcon } from "frappe-ui";
 import { PropType, computed, h, inject, nextTick, onMounted, watch } from "vue";
+import LucideMessageSquare from "~icons/lucide/message-square";
 import { useRoute, useRouter } from "vue-router";
 import FeedbackBox from "../ticket-agent/FeedbackBox.vue";
 
@@ -145,6 +162,30 @@ const props = defineProps({
 
 const emit = defineEmits(["email:reply", "update"]);
 
+// Activities that render as a card next to a 36px avatar or icon.
+const CARD_ACTIVITIES = ["email", "feedback", "call", "comment", "chat"];
+function isCardActivity(type: string) {
+  return CARD_ACTIVITIES.includes(type);
+}
+
+// Failed or blocked WhatsApp-style messages can be edited and sent again.
+const ticketRef = inject(TicketSymbol);
+const channel = useTicketChannel(() => ticketRef?.value?.doc?.name);
+const canReuseText = computed(() => {
+  const mode = channel.mode.value;
+  return (
+    mode.mode === "channel" &&
+    mode.canSend &&
+    !channel.reply.value.draft.trim() &&
+    !channel.reply.value.pending
+  );
+});
+function reuseText(text: string) {
+  channel.setDraft(text);
+  showCommentBox.value = false;
+  showEmailBox.value = true;
+}
+
 const route = useRoute();
 const router = useRouter();
 
@@ -153,6 +194,7 @@ const makeCall = inject<() => void>("makeCall");
 
 const emptyText = computed(() => {
   if (props.title === "Emails") return "No email communications";
+  if (props.title === "Messages") return "No messages yet";
   if (props.title === "Comments") return "No comments found";
   if (props.title === "Calls") return "No calls made";
 
@@ -163,6 +205,8 @@ const emptyTextIcon = computed(() => {
   let icon = ActivityIcon;
   if (props.title == "Emails") {
     icon = EmailIcon;
+  } else if (props.title == "Messages") {
+    icon = LucideMessageSquare;
   } else if (props.title == "Comments") {
     icon = CommentIcon;
   } else if (props.title == "Calls") {

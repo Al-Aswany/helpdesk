@@ -10,7 +10,8 @@
         <div class="flex min-w-0 items-center gap-1.5 w-fit max-w-[65%]">
           <p
             class="min-h-[1lh] cursor-pointer truncate text-lg font-medium text-ink-gray-7 hover:text-ink-gray-9"
-            @click="openContact(contact.data?.name)"
+            dir="auto"
+            @click="contact.data?.email_id && openContact(contact.data?.name)"
           >
             {{ contact.data?.name || contact.data?.email_id }}
           </p>
@@ -29,9 +30,7 @@
           #{{ ticket.doc.name }}
         </p>
         <div class="flex items-center">
-          <span>{{
-            ticket.doc.via_customer_portal ? __("via Portal") : __("via Email")
-          }}</span>
+          <span>{{ sourceText }}</span>
         </div>
       </div>
     </div>
@@ -52,9 +51,11 @@
 
 <script setup lang="ts">
 import { useShortcut } from "@/composables/shortcuts";
+import { sourceLabel, useTicketChannel } from "@/composables/ticketChannel";
 import { useTelephonyStore } from "@/stores/telephony";
 import { useUserStore } from "@/stores/user";
 import { TicketContactSymbol, TicketSymbol } from "@/types";
+import { __ } from "@/translation";
 import { copyToClipboard, openContact } from "@/utils";
 import { Avatar, Button, Tooltip } from "frappe-ui";
 import { storeToRefs } from "pinia";
@@ -68,6 +69,17 @@ const { isCallingEnabled } = storeToRefs(telephonyStore);
 const showPhoneModal = ref(false);
 
 const ticket = inject(TicketSymbol)!;
+
+const channel = useTicketChannel(() => ticket.value?.doc?.name);
+const sourceText = computed(() => {
+  const label = sourceLabel({
+    descriptor: channel.descriptor.value,
+    viaPortal: ticket.value?.doc?.via_customer_portal,
+    portalLabel: __("Portal"),
+    emailLabel: __("Email"),
+  });
+  return __("via {0}", [label]);
+});
 
 const contact = inject(TicketContactSymbol)!;
 const contactImage = computed(() => {

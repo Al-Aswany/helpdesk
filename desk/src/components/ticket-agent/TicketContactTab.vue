@@ -10,18 +10,49 @@
           size="2xl"
         />
         <div class="flex gap-2 items-center">
-          <p class="text-ink-gray-8 font-medium text-xl max-w-full truncate">
+          <p
+            dir="auto"
+            class="text-ink-gray-8 font-medium text-xl max-w-full truncate"
+          >
             {{ contact.data.name }}
           </p>
           <ExternalLinkIcon
+            v-if="contact.data.email_id"
             class="size-4 text-ink-gray-6 cursor-pointer"
             @click="openContact(contact.data.name)"
           />
         </div>
       </div>
       <div class="px-5 text-ink-gray-5 pb-2">
+        <!-- Channel identity: a conversation answered outside email has no address -->
+        <div
+          v-if="channelContact"
+          class="flex gap-2 items-center py-1.5"
+          data-testid="contact-channel-identity"
+        >
+          <ChannelIcon :name="channelContact.icon" class="size-4" />
+          <p class="text-p-sm text-ink-gray-6">
+            <span>{{ channelContact.label }}</span>
+            <bdi v-if="channelContact.identity" dir="ltr">
+              <span aria-hidden="true"> · </span>{{ channelContact.identity }}
+            </bdi>
+          </p>
+          <CopyIcon
+            v-if="channelContact.identity"
+            class="size-4 cursor-pointer"
+            @click="
+              copyToClipboard(
+                channelContact.identity,
+                `'${channelContact.identity}' copied to clipboard`
+              )
+            "
+          />
+        </div>
         <!-- Email Id -->
-        <div class="flex gap-2 items-center py-1.5">
+        <div
+          v-else-if="contact.data.email_id"
+          class="flex gap-2 items-center py-1.5"
+        >
           <EmailIcon class="size-4" />
           <p class="text-p-sm text-ink-gray-6 hover:underline cursor-pointer">
             {{ contact.data.email_id }}
@@ -125,14 +156,20 @@
 </template>
 
 <script setup lang="ts">
+import { useTicketChannel } from "@/composables/ticketChannel";
 import { useTelephonyStore } from "@/stores/telephony";
 import { useTicketStatusStore } from "@/stores/ticketStatus";
-import { RecentSimilarTicketsSymbol, TicketContactSymbol } from "@/types";
+import {
+  RecentSimilarTicketsSymbol,
+  TicketContactSymbol,
+  TicketSymbol,
+} from "@/types";
 import { copyToClipboard } from "@/utils";
 import dayjs from "dayjs";
 import { Avatar, Tooltip } from "frappe-ui";
 import { storeToRefs } from "pinia";
 import { computed, inject } from "vue";
+import ChannelIcon from "../channel/ChannelIcon.vue";
 import { CopyIcon } from "../icons";
 import EmailIcon from "../icons/EmailIcon.vue";
 import PhoneIcon from "../icons/PhoneIcon.vue";
@@ -141,6 +178,19 @@ const telephonyStore = useTelephonyStore();
 const { isCallingEnabled } = storeToRefs(telephonyStore);
 
 const contact = inject(TicketContactSymbol);
+const ticket = inject(TicketSymbol);
+
+const channel = useTicketChannel(() => ticket?.value?.doc?.name);
+const channelContact = computed(() => {
+  const descriptor = channel.descriptor.value;
+  return descriptor
+    ? {
+        icon: descriptor.icon,
+        label: descriptor.label,
+        identity: descriptor.contact.identity,
+      }
+    : null;
+});
 const recentSimilarTickets = inject(RecentSimilarTicketsSymbol);
 const dateFormat = window.date_format;
 

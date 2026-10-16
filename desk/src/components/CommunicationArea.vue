@@ -14,7 +14,12 @@
           @click="toggleEmailBox()"
         >
           <template #prefix>
-            <EmailIcon class="h-4" />
+            <ChannelIcon
+              v-if="replyChannel"
+              :name="replyChannel.icon"
+              class="h-4"
+            />
+            <EmailIcon v-else class="h-4" />
           </template>
         </Button>
         <Button
@@ -36,12 +41,35 @@
       <div
         v-show="showEmailBox"
         ref="emailBoxRef"
-        @keydown.ctrl.enter.capture.stop="submitEmail"
-        @keydown.meta.enter.capture.stop="submitEmail"
+        @keydown.ctrl.enter.capture.stop="submitReply"
+        @keydown.meta.enter.capture.stop="submitReply"
         @keydown.esc.capture.stop="showEmailBox = false"
       >
         <div class="overflow-hidden">
+          <!-- Tickets answered outside email get their own composer. The email
+               editor is never shown for them, not even while the channel loads. -->
+          <ChannelReplyEditor
+            v-if="channel.mode.value.mode !== 'email'"
+            ref="channelEditorRef"
+            :label="
+              isMobileView ? 'Send' : isMac ? 'Send (⌘ + ⏎)' : 'Send (Ctrl + ⏎)'
+            "
+            placeholder="Write a reply"
+            :ticketId="ticketId"
+            @submit="
+              () => {
+                showEmailBox = false;
+                emit('update');
+              }
+            "
+            @discard="
+              () => {
+                showEmailBox = false;
+              }
+            "
+          />
           <EmailEditor
+            v-else
             ref="emailEditorRef"
             :label="
               isMobileView ? 'Send' : isMac ? 'Send (⌘ + ⏎)' : 'Send (Ctrl + ⏎)'
@@ -108,13 +136,16 @@
 
 <script setup lang="ts">
 import { CommentTextEditor, EmailEditor, TypingIndicator } from "@/components";
+import ChannelIcon from "@/components/channel/ChannelIcon.vue";
+import ChannelReplyEditor from "@/components/channel/ChannelReplyEditor.vue";
 import { CommentIcon, EmailIcon } from "@/components/icons/";
 import { useDevice } from "@/composables";
+import { useTicketChannel } from "@/composables/ticketChannel";
 import { useScreenSize } from "@/composables/screen";
 import { useShortcut } from "@/composables/shortcuts";
 import { showCommentBox, showEmailBox } from "@/pages/ticket/modalStates";
 import { onClickOutside } from "@vueuse/core";
-import { ref, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 
 const emit = defineEmits(["update"]);
 const content = defineModel("content");
@@ -123,6 +154,7 @@ const { isMobileView } = useScreenSize();
 let doc = defineModel();
 // let doc = inject(TicketSymbol)?.value.doc
 const emailEditorRef = ref(null);
+const channelEditorRef = ref(null);
 const commentTextEditorRef = ref(null);
 const emailBoxRef = ref(null);
 const commentBoxRef = ref(null);
@@ -142,9 +174,19 @@ function toggleCommentBox() {
 }
 
 function submitEmail() {
-  if (emailEditorRef.value.submitMail()) {
+  if (emailEditorRef.value?.submitMail()) {
     emit("update");
   }
+}
+
+// Ctrl/Cmd+Enter in the reply box sends through whichever editor is showing.
+// The channel editor emits its own `submit` once the reply is saved.
+function submitReply() {
+  if (channel.mode.value.mode !== "email") {
+    channelEditorRef.value?.submit();
+    return;
+  }
+  submitEmail();
 }
 
 function submitComment() {
@@ -162,6 +204,8 @@ function splitIfString(str: string | string[]) {
 
 function replyToEmail(data: object) {
   showEmailBox.value = true;
+  // Emails inside a channel conversation are answered in its own composer.
+  if (!emailEditorRef.value) return;
 
   emailEditorRef.value.addToReply(
     data.content,
@@ -194,11 +238,25 @@ const props = defineProps({
   },
 });
 
+const channel = useTicketChannel(() =>
+  props.doctype === "HD Ticket" &&
+  props.ticketId &&
+  props.ticketId !== "undefined"
+    ? props.ticketId
+    : null
+);
+const replyChannel = computed(() =>
+  channel.mode.value.mode === "email"
+    ? null
+    : channel.descriptor.value ?? { icon: null }
+);
+
 watch(
   () => showEmailBox.value,
   (value) => {
     if (value) {
       emailEditorRef.value?.editor?.commands?.focus("start");
+      nextTick(() => channelEditorRef.value?.focus?.());
     }
   }
 );

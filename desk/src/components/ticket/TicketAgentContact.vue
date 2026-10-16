@@ -3,7 +3,7 @@
     <Avatar size="3xl" :image="contact.image" :label="contact.name" />
     <div class="flex items-center justify-between flex-1">
       <Tooltip :text="contact.name">
-        <div class="w-full truncate text-3xl-medium">
+        <div dir="auto" class="w-full truncate text-3xl-medium">
           {{ contact.name }}
         </div>
       </Tooltip>
@@ -15,10 +15,21 @@
             </template>
           </Button>
         </Tooltip>
-        <Tooltip :text="contact.email_id">
+        <Tooltip
+          :text="
+            channel.descriptor.value
+              ? __('Reply on {0}', [channel.descriptor.value.label])
+              : contact.email_id
+          "
+        >
           <Button @click="openEmailBox()">
             <template #icon>
-              <EmailIcon class="size-4" />
+              <ChannelIcon
+                v-if="channel.mode.value.mode !== 'email'"
+                :name="channel.descriptor.value?.icon"
+                class="size-4"
+              />
+              <EmailIcon v-else class="size-4" />
             </template>
           </Button>
         </Tooltip>
@@ -54,9 +65,11 @@
 
 <script setup lang="ts">
 import { EmailIcon, PhoneIcon } from "@/components/icons/";
+import { useTicketChannel } from "@/composables/ticketChannel";
 import { useTelephonyStore } from "@/stores/telephony";
 import { Avatar, Tooltip, Button } from "frappe-ui";
 import { storeToRefs } from "pinia";
+import ChannelIcon from "../channel/ChannelIcon.vue";
 import SetContactPhoneModal from "./SetContactPhoneModal.vue";
 import { inject, ref } from "vue";
 
@@ -87,6 +100,7 @@ const callContact = () => {
     docname: props.ticketId,
   });
 };
+const channel = useTicketChannel(() => props.ticketId);
 const emit = defineEmits(["email:open"]);
 
 function openEmailBox() {

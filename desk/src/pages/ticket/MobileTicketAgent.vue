@@ -118,9 +118,12 @@
                   </div>
                   <div>
                     {{
-                      ticket.doc?.via_customer_portal
-                        ? __("Portal")
-                        : __("Mail")
+                      sourceLabel({
+                        descriptor: channel.descriptor.value,
+                        viaPortal: ticket.doc?.via_customer_portal,
+                        portalLabel: __("Portal"),
+                        emailLabel: __("Mail"),
+                      })
                     }}
                   </div>
                 </div>
@@ -250,6 +253,12 @@ import {
   PhoneIcon,
 } from "@/components/icons";
 import { TicketAgentActivities } from "@/components/ticket";
+import {
+  buildMessageActivities,
+  sourceLabel,
+  useChannelPolling,
+} from "@/composables/ticketChannel";
+import LucideMessageSquare from "~icons/lucide/message-square";
 
 import CustomActions from "@/components/CustomActions.vue";
 import AssignTo from "@/components/ticket-agent/AssignTo.vue";
@@ -322,6 +331,9 @@ const ticket = computed(() => ticketComposable.value.ticket);
 const assignees = computed(() => ticketComposable.value.assignees);
 const contact = computed(() => ticketComposable.value.contact);
 const activities = computed(() => ticketComposable.value.activities);
+// Conversation channel of this ticket (when an installed app provides one) and
+// the bounded status polling that goes with this view.
+const channel = useChannelPolling(() => props.ticketId);
 
 const customizations: Resource<Customizations> = createResource({
   url: "helpdesk.helpdesk.doctype.hd_ticket.api.get_ticket_customizations",
@@ -500,17 +512,32 @@ const tabs: ComputedRef<TabObject[]> = computed(() => {
       label: __("Activity"),
       icon: ActivityIcon,
     },
-    {
+  ];
+
+  const isChannelTicket = Boolean(channel.descriptor.value);
+  if (isChannelTicket) {
+    _tabs.push({
+      name: "chat",
+      label: __("Messages"),
+      icon: LucideMessageSquare,
+    });
+  }
+  // A channel conversation has no email tab unless it also holds emails.
+  const hasEmails = activities.value?.data?.communications?.some(
+    (item) => item.communication_medium !== "Chat"
+  );
+  if (!isChannelTicket || hasEmails) {
+    _tabs.push({
       name: "email",
       label: __("Emails"),
       icon: EmailIcon,
-    },
-    {
-      name: "comment",
-      label: __("Comments"),
-      icon: CommentIcon,
-    },
-  ];
+    });
+  }
+  _tabs.push({
+    name: "comment",
+    label: __("Comments"),
+    icon: CommentIcon,
+  });
 
   if (isCallingEnabled.value) {
     _tabs.push({
@@ -529,24 +556,11 @@ const _activities = computed(() => {
     return [];
   }
 
-  const emailProps = activities.value.data.communications.map(
-    (email, idx: number) => {
-      return {
-        subject: email.subject,
-        content: email.content,
-        sender: { name: email.user.email, full_name: email.user.name },
-        to: email.recipients,
-        type: "email",
-        key: email.creation,
-        cc: email.cc,
-        bcc: email.bcc,
-        creation: email.communication_date || email.creation,
-        attachments: email.attachments,
-        name: email.name,
-        deliveryStatus: email.delivery_status,
-        isFirstEmail: idx === 0,
-      };
-    }
+  // Emails keep their existing shape; chat messages and unfinished outbound
+  // replies become `chat` activities (see ticketChannel/logic.ts).
+  const emailProps = buildMessageActivities(
+    activities.value.data.communications,
+    channel.descriptor.value
   );
 
   const commentProps = activities.value.data.comments.map((comment) => {
