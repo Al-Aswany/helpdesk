@@ -9,6 +9,7 @@ from frappe.utils import get_user_info_for_avatar, now_datetime
 from frappe.utils.caching import redis_cache
 from pypika import Criterion, Order
 
+from helpdesk.api.channel import get_ticket_channel
 from helpdesk.api.doc import handle_at_me_support
 from helpdesk.consts import DEFAULT_TICKET_TEMPLATE
 from helpdesk.helpdesk.doctype.hd_form_script.hd_form_script import get_form_script
@@ -178,6 +179,7 @@ def get_communications(ticket: str):
             QBCommunication.content,
             QBCommunication.creation,
             QBCommunication.communication_date,
+            QBCommunication.communication_medium,
             QBCommunication.name,
             QBCommunication.sender,
             QBCommunication.recipients,
@@ -744,6 +746,10 @@ def get_ticket_activities(ticket: str):
         "views": get_views(ticket),
         "calls": get_call_logs(ticket),
     }
+    # Only present when an installed app owns this ticket's conversation channel
+    channel = get_ticket_channel(ticket)
+    if channel:
+        activities["channel"] = channel
     return activities
 
 
