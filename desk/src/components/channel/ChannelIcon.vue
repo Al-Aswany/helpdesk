@@ -3,16 +3,18 @@
 </template>
 
 <script setup lang="ts">
-import { WhatsAppIcon } from "@/components/icons";
+import { MessengerIcon, WhatsAppIcon } from "@/components/icons";
 import { computed } from "vue";
 import LucideMessageSquare from "~icons/lucide/message-square";
 
 // `name` comes from the channel descriptor. Unknown names get a neutral icon.
 const props = defineProps<{ name?: string | null }>();
 
-const icon = computed(() =>
-  props.name === "whatsapp" ? WhatsAppIcon : LucideMessageSquare
-);
+const icon = computed(() => {
+  if (props.name === "whatsapp") return WhatsAppIcon;
+  if (props.name === "messenger") return MessengerIcon;
+  return LucideMessageSquare;
+});
 
 defineOptions({ inheritAttrs: false });
 </script>

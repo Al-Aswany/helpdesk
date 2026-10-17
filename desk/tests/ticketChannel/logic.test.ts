@@ -255,6 +255,15 @@ test("reason copy is actionable and has no internal wording", () => {
   );
 });
 
+test("messenger copy uses the channel label and the 24-hour window", () => {
+  const copy = reasonCopy("window_closed", "Messenger");
+  assert.match(copy.detail, /Messenger/);
+  assert.match(copy.detail, /24-hour/);
+  assert.doesNotMatch(`${copy.title} ${copy.detail}`, /WhatsApp/);
+  const paused = reasonCopy("account_paused");
+  assert.match(paused.title, /WhatsApp/);
+});
+
 test("window time left is readable", () => {
   assert.equal(formatWindowLeft(0), "1m");
   assert.equal(formatWindowLeft(59 * 60), "59m");

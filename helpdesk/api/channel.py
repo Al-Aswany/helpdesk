@@ -177,6 +177,7 @@ def clean_descriptor(key: str, raw: dict) -> dict:
             "media": bool(capabilities.get("media")),
             "templates": bool(capabilities.get("templates")),
             "media_limits": _media_limits(capabilities.get("media_limits")),
+            "accept": _accept(capabilities.get("accept")),
         },
         "templates": _templates(raw.get("templates")),
         "current_ticket": _text(raw.get("current_ticket")) or None,
@@ -219,6 +220,17 @@ def _outbound(rows) -> list[dict]:
             value = row.get(field)
             item[field] = None if value is None else str(value)
         cleaned.append(item)
+    return cleaned
+
+
+def _accept(value) -> list[str]:
+    if not isinstance(value, list | tuple):
+        return []
+    cleaned = []
+    for item in list(value)[:12]:
+        text = _text(item, 80).lower()
+        if re.fullmatch(r"[a-z0-9.+-]+/[a-z0-9.+-]+", text):
+            cleaned.append(text)
     return cleaned
 
 

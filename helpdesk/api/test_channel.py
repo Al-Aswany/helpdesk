@@ -170,6 +170,7 @@ class TestTicketChannel(FrappeTestCase):
                     "video": 0,
                     "document": 104857600,
                 },
+                "accept": [],
             },
         )
         self.assertEqual(len(descriptor["outbound"]), 1)
@@ -177,6 +178,20 @@ class TestTicketChannel(FrappeTestCase):
         blob = json.dumps(descriptor)
         for leaked in ("must-not-leak", "wamid.X", "wa_id", "access_token"):
             self.assertNotIn(leaked, blob)
+
+    def test_accept_list_keeps_only_mime_types(self):
+        descriptor = channel.clean_descriptor(
+            "messenger",
+            {
+                "capabilities": {
+                    "accept": ["image/png", "not a mime", "IMAGE/JPEG", "text/plain"]
+                }
+            },
+        )
+        self.assertEqual(
+            descriptor["capabilities"]["accept"],
+            ["image/png", "image/jpeg", "text/plain"],
+        )
 
     def test_unknown_status_is_unavailable_and_cannot_enable_a_reply(self):
         descriptor = channel.clean_descriptor(

@@ -139,7 +139,7 @@
               type="file"
               tabindex="-1"
               aria-hidden="true"
-              accept="image/jpeg,image/png,audio/aac,audio/amr,audio/mpeg,audio/mp4,audio/ogg,video/mp4,video/3gpp,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+              :accept="fileAccept"
               class="sr-only"
               data-testid="channel-file"
               @change="onFile"
@@ -436,20 +436,33 @@ const canSubmit = computed(
       Boolean(state.value.pending?.file))
 );
 
+const providerLabel = computed(() => {
+  if (resolved.value.mode === "channel" || resolved.value.mode === "unavailable") {
+    return resolved.value.descriptor?.label || "WhatsApp";
+  }
+  return "WhatsApp";
+});
+const WHATSAPP_ACCEPT =
+  "image/jpeg,image/png,audio/aac,audio/amr,audio/mpeg,audio/mp4,audio/ogg,video/mp4,video/3gpp,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation";
+const fileAccept = computed(() => {
+  if (resolved.value.mode !== "channel") return WHATSAPP_ACCEPT;
+  const accept = resolved.value.descriptor.capabilities.accept;
+  return accept && accept.length ? accept.join(",") : WHATSAPP_ACCEPT;
+});
 const unavailableCopy = computed(() =>
   resolved.value.mode === "unavailable"
-    ? reasonCopy(resolved.value.reason)
-    : reasonCopy(null)
+    ? reasonCopy(resolved.value.reason, providerLabel.value)
+    : reasonCopy(null, providerLabel.value)
 );
 const holdCopy = computed(() => {
-  if (resolved.value.mode !== "channel") return reasonCopy(null);
+  if (resolved.value.mode !== "channel") return reasonCopy(null, providerLabel.value);
   if (
     resolved.value.holdReason === "template_required" &&
     !(resolved.value.descriptor.templates || []).length
   ) {
-    return reasonCopy("no_approved_template");
+    return reasonCopy("no_approved_template", providerLabel.value);
   }
-  return reasonCopy(resolved.value.holdReason);
+  return reasonCopy(resolved.value.holdReason, providerLabel.value);
 });
 const templates = computed(() =>
   resolved.value.mode === "channel"
@@ -487,10 +500,14 @@ const mediaLimits = computed(() =>
 );
 const mediaLimitLabel = computed(() => {
   const document = mediaLimits.value.document || 0;
-  return document
-    ? __("Documents up to {0} MiB", [
-        String(Math.floor(document / 1024 / 1024)),
-      ])
+  if (document) {
+    return __("Documents up to {0} MiB", [
+      String(Math.floor(document / 1024 / 1024)),
+    ]);
+  }
+  const image = mediaLimits.value.image || 0;
+  return image
+    ? __("Images up to {0} MiB", [String(Math.floor(image / 1024 / 1024))])
     : "";
 });
 const selectedTemplate = computed(() =>
@@ -648,8 +665,8 @@ const currentTicket = computed(() =>
 const blockedCopy = computed(() => {
   const notice = state.value.notice;
   if (notice?.kind !== "blocked") return null;
-  const copy = reasonCopy(notice.reason);
-  const known = notice.reason && copy.title !== reasonCopy(null).title;
+  const copy = reasonCopy(notice.reason, providerLabel.value);
+  const known = notice.reason && copy.title !== reasonCopy(null, providerLabel.value).title;
   return known || !notice.message
     ? copy
     : { title: copy.title, detail: notice.message };

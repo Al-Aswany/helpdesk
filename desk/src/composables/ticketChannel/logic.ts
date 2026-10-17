@@ -53,6 +53,7 @@ export interface ChannelDescriptor {
     media: boolean;
     templates: boolean;
     media_limits?: Record<"image" | "audio" | "video" | "document", number>;
+    accept?: string[];
   };
   templates?: {
     name: string;
@@ -183,7 +184,10 @@ export interface OutboundView {
  * the message. It does not claim delivery or a read receipt, which the backend
  * does not report.
  */
-export function outboundView(row: OutboundRow): OutboundView {
+export function outboundView(
+  row: OutboundRow,
+  providerLabel = "WhatsApp"
+): OutboundView {
   switch (row.state) {
     case "Queued":
       return view(row, "Queued", "gray", "Waiting to be sent.", true, false);
@@ -192,7 +196,7 @@ export function outboundView(row: OutboundRow): OutboundView {
         row,
         "Sending",
         "gray",
-        "Being handed to WhatsApp.",
+        `Being handed to ${providerLabel}.`,
         true,
         false
       );
@@ -201,7 +205,7 @@ export function outboundView(row: OutboundRow): OutboundView {
         row,
         "Accepted",
         "blue",
-        "WhatsApp accepted this message. Delivery is not confirmed yet.",
+        `${providerLabel} accepted this message. Delivery is not confirmed yet.`,
         false,
         false
       );
@@ -210,7 +214,7 @@ export function outboundView(row: OutboundRow): OutboundView {
         row,
         "Sent",
         "blue",
-        "WhatsApp has sent this message. It is not confirmed as delivered.",
+        `${providerLabel} has sent this message. It is not confirmed as delivered.`,
         false,
         false
       );
@@ -237,7 +241,7 @@ export function outboundView(row: OutboundRow): OutboundView {
         row,
         "Not sent",
         "orange",
-        reasonCopy(row.reason).detail,
+        reasonCopy(row.reason, providerLabel).detail,
         false,
         true
       );
@@ -246,7 +250,7 @@ export function outboundView(row: OutboundRow): OutboundView {
         row,
         "Failed",
         "red",
-        row.error_summary || reasonCopy(row.reason).detail,
+        row.error_summary || reasonCopy(row.reason, providerLabel).detail,
         false,
         true
       );
@@ -255,7 +259,7 @@ export function outboundView(row: OutboundRow): OutboundView {
         row,
         "Uncertain",
         "orange",
-        "We could not confirm whether WhatsApp received this. Check with the customer before sending it again.",
+        `We could not confirm whether ${providerLabel} received this. Check with the customer before sending it again.`,
         false,
         false
       );
@@ -287,14 +291,22 @@ export interface ReasonCopy {
   detail: string;
 }
 
-/** English copy. Callers pass it through `__()`. */
-export function reasonCopy(reason: string | null | undefined): ReasonCopy {
+/** English copy. Callers pass it through `__()`. The default label keeps WhatsApp wording. */
+export function reasonCopy(
+  reason: string | null | undefined,
+  providerLabel = "WhatsApp"
+): ReasonCopy {
   switch (reason) {
     case "template_required":
       return {
         title: "The reply window has closed",
         detail:
           "Free-form WhatsApp replies are closed. Send an approved template, or wait until the customer writes again.",
+      };
+    case "window_closed":
+      return {
+        title: "The reply window has closed",
+        detail: `Free-form ${providerLabel} replies are closed until the customer writes again. This conversation uses the standard 24-hour window.`,
       };
     case "no_approved_template":
       return {
@@ -304,16 +316,20 @@ export function reasonCopy(reason: string | null | undefined): ReasonCopy {
       };
     case "account_paused":
       return {
-        title: "WhatsApp replies are paused",
-        detail:
-          "This WhatsApp account is paused, so nothing can be sent until it is resumed.",
+        title: `${providerLabel} replies are paused`,
+        detail: `This ${providerLabel} account is paused, so nothing can be sent until it is resumed.`,
+      };
+    case "outbound_disabled":
+      return {
+        title: `${providerLabel} replies are turned off`,
+        detail: `Outbound ${providerLabel} replies are switched off. An administrator can enable them when this Page is ready.`,
       };
     case "account_not_enforced":
     case "no_connector":
+    case "connector_missing":
       return {
-        title: "WhatsApp replies are not turned on",
-        detail:
-          "This WhatsApp account is not ready to send replies yet. Ask an administrator to finish setting it up.",
+        title: `${providerLabel} replies are not turned on`,
+        detail: `This ${providerLabel} account is not ready to send replies yet. Ask an administrator to finish setting it up.`,
       };
     case "stale_thread_mapping":
       return {
@@ -323,22 +339,27 @@ export function reasonCopy(reason: string | null | undefined): ReasonCopy {
       };
     case "not_permitted":
       return {
-        title: "You cannot reply on WhatsApp",
+        title: `You cannot reply on ${providerLabel}`,
         detail:
           "Only active support agents with access to this ticket can reply. You can still add internal comments.",
       };
     case "provider_rejected":
+    case "token_invalid":
       return {
-        title: "WhatsApp rejected the message",
-        detail: "WhatsApp did not accept this message.",
+        title: `${providerLabel} rejected the message`,
+        detail: `${providerLabel} did not accept this message.`,
+      };
+    case "unsupported_media":
+      return {
+        title: "This file cannot be sent",
+        detail: `Only a small JPEG or PNG image can be sent on ${providerLabel}.`,
       };
     case "thread_missing":
     case "lookup_failed":
     case "no_provider":
       return {
-        title: "WhatsApp replies are unavailable",
-        detail:
-          "The details of this WhatsApp conversation could not be loaded, so replies are turned off instead of emailing a placeholder address. Reload the page to try again.",
+        title: `${providerLabel} replies are unavailable`,
+        detail: `The details of this ${providerLabel} conversation could not be loaded, so replies are turned off instead of emailing a placeholder address. Reload the page to try again.`,
       };
     default:
       return {

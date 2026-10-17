@@ -148,7 +148,9 @@ const elementId = computed(() =>
 );
 
 const view = computed(() =>
-  props.activity.outbound ? outboundView(props.activity.outbound) : null
+  props.activity.outbound
+    ? outboundView(props.activity.outbound, props.activity.channel?.label || "WhatsApp")
+    : null
 );
 
 // "Accepted" is the normal outcome and its caveat is in the badge tooltip.
