@@ -507,6 +507,7 @@ export interface ChatActivity extends BaseActivity {
   channel: { key: string; label: string; icon: string | null };
   outbound: import("@/composables/ticketChannel/logic").OutboundRow | null;
   attachments: FileAttachment[];
+  attachmentName?: string;
 }
 
 export type TicketActivity =

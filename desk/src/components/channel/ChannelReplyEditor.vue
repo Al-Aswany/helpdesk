@@ -73,8 +73,58 @@
             <p class="mt-0.5">{{ __(holdCopy.detail) }}</p>
           </div>
         </div>
+        <form
+          v-if="templates.length"
+          class="flex flex-col gap-2 rounded-md border border-outline-gray-2 p-3"
+          data-testid="channel-template"
+          @submit.prevent="sendTemplate"
+        >
+          <label class="text-p-sm text-ink-gray-7">
+            {{ __("Approved template") }}
+            <select
+              v-model="templateKey"
+              class="mt-1 w-full rounded border border-outline-gray-2 bg-surface-white px-2 py-1"
+              data-testid="channel-template-select"
+            >
+              <option v-for="item in templates" :key="item.name + item.language" :value="item.name + '|' + item.language">
+                {{ item.label }}
+              </option>
+            </select>
+          </label>
+          <label
+            v-for="index in templateParameterCount"
+            :key="index"
+            class="text-p-sm text-ink-gray-7"
+          >
+            {{ __("Parameter {0}", [String(index)]) }}
+            <input
+              v-model="templateParameters[index - 1]"
+              dir="auto"
+              class="mt-1 w-full rounded border border-outline-gray-2 px-2 py-1"
+              :data-testid="'channel-template-param-' + index"
+            />
+          </label>
+          <div class="flex justify-end">
+            <Button
+              variant="solid"
+              :label="__('Send template')"
+              :disabled="!templateReady"
+              data-testid="channel-template-send"
+              @click="sendTemplate"
+            />
+          </div>
+        </form>
+        <div v-if="resolved.canSend && resolved.descriptor.capabilities.media" class="flex items-center gap-2">
+          <input
+            ref="fileRef"
+            type="file"
+            class="text-p-sm"
+            data-testid="channel-file"
+            @change="onFile"
+          />
+        </div>
         <p
-          v-else-if="windowHint"
+          v-if="windowHint"
           class="text-p-xs text-ink-gray-5"
           data-testid="channel-window"
         >
@@ -289,11 +339,65 @@ const unavailableCopy = computed(() =>
     ? reasonCopy(resolved.value.reason)
     : reasonCopy(null)
 );
-const holdCopy = computed(() =>
-  resolved.value.mode === "channel"
-    ? reasonCopy(resolved.value.holdReason)
-    : reasonCopy(null)
+const holdCopy = computed(() => {
+  if (resolved.value.mode !== "channel") return reasonCopy(null);
+  if (
+    resolved.value.holdReason === "template_required" &&
+    !(resolved.value.descriptor.templates || []).length
+  ) {
+    return reasonCopy("no_approved_template");
+  }
+  return reasonCopy(resolved.value.holdReason);
+});
+const templates = computed(() =>
+  resolved.value.mode === "channel" ? resolved.value.descriptor.templates || [] : []
 );
+const templateKey = ref("");
+const templateParameters = ref<string[]>([]);
+const fileRef = ref<HTMLInputElement | null>(null);
+const selectedTemplate = computed(() =>
+  templates.value.find((item) => `${item.name}|${item.language}` === templateKey.value)
+);
+const templateParameterCount = computed(() => selectedTemplate.value?.parameter_count || 0);
+const templateReady = computed(() => {
+  const count = templateParameterCount.value;
+  if (!selectedTemplate.value) return false;
+  return templateParameters.value.slice(0, count).every((value) => value && value.trim());
+});
+
+async function sendTemplate() {
+  const chosen = selectedTemplate.value;
+  if (!chosen || !templateReady.value) return;
+  await channel.submitTemplate(
+    chosen.name,
+    chosen.language,
+    templateParameters.value.slice(0, chosen.parameter_count)
+  );
+}
+
+async function onFile(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  const body = new FormData();
+  body.append("file", file, file.name);
+  body.append("is_private", "1");
+  body.append("doctype", "HD Ticket");
+  body.append("docname", props.ticketId);
+  body.append("folder", "Home/Attachments");
+  const response = await fetch("/api/method/upload_file", {
+    method: "POST",
+    body,
+    headers: {
+      "X-Frappe-CSRF-Token":
+        (window as unknown as { csrf_token?: string }).csrf_token || "",
+    },
+  });
+  const payload = await response.json();
+  const name = payload?.message?.name;
+  if (name) await channel.submitFile(name, draft.value);
+  input.value = "";
+}
 const currentTicket = computed(() =>
   resolved.value.mode === "unavailable"
     ? resolved.value.descriptor?.current_ticket

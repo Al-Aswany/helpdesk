@@ -251,7 +251,7 @@ test("reason copy is actionable and has no internal wording", () => {
   }
   assert.match(
     reasonCopy("template_required").detail,
-    /write to you|write again|reply here again/i
+    /write to you|write again|writes again|approved template/i
   );
 });
 

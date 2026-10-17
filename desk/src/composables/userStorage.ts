@@ -7,6 +7,16 @@ export function userStorage<T>(key: string, fallback: T) {
   return useStorage<T>(`${key}:${sessionUserId()}`, fallback);
 }
 
+export function clearChannelReplyStorage() {
+  const prefix = "helpdesk:channel-reply:";
+  const keys: string[] = [];
+  for (let i = 0; i < localStorage.length; i += 1) {
+    const key = localStorage.key(i);
+    if (key && key.startsWith(prefix)) keys.push(key);
+  }
+  for (const key of keys) localStorage.removeItem(key);
+}
+
 export function sessionUserId(): string {
   const cookies = new URLSearchParams(document.cookie.split("; ").join("&"));
   return cookies.get("user_id") || "guest";

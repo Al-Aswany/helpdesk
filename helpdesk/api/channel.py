@@ -46,6 +46,10 @@ _OUTBOUND_FIELDS = (
     "sending_started_at",
     "accepted_at",
     "completed_at",
+    "intent_kind",
+    "attachment_name",
+    "template_name",
+    "template_language",
 )
 _RESULT_FIELDS = (
     "ok",
@@ -173,9 +177,33 @@ def clean_descriptor(key: str, raw: dict) -> dict:
             "media": bool(capabilities.get("media")),
             "templates": bool(capabilities.get("templates")),
         },
+        "templates": _templates(raw.get("templates")),
         "current_ticket": _text(raw.get("current_ticket")) or None,
         "outbound": _outbound(raw.get("outbound")),
     }
+
+
+def _templates(rows) -> list[dict]:
+    if not isinstance(rows, list | tuple):
+        return []
+    cleaned = []
+    for row in list(rows)[:50]:
+        if not isinstance(row, dict):
+            continue
+        try:
+            count = int(row.get("parameter_count") or 0)
+        except (TypeError, ValueError):
+            count = 0
+        cleaned.append(
+            {
+                "name": _text(row.get("name"), 80),
+                "language": _text(row.get("language"), 16),
+                "label": _text(row.get("label"), 120),
+                "body": _text(row.get("body"), 500),
+                "parameter_count": count if count >= 0 else 0,
+            }
+        )
+    return cleaned
 
 
 def _outbound(rows) -> list[dict]:
@@ -228,13 +256,19 @@ def get_channel(ticket: str, channel: str) -> dict | None:
 
 @frappe.whitelist(methods=["POST"])
 def send_channel_reply(
-    ticket: str, channel: str, message: str, request_id: str
+    ticket: str,
+    channel: str,
+    message: str,
+    request_id: str,
+    file: str | None = None,
+    template: str | None = None,
+    language: str | None = None,
+    parameters=None,
 ) -> dict:
     """Hand one public reply to the ticket's channel provider.
 
-    Rendering and polling never reach this function. The provider decides the
-    recipient and whether the reply may go out; nothing is taken from the client
-    beyond the text and its idempotency key.
+    A file or a template is optional. Text-only calls keep the original
+    behaviour. The provider checks the file, the template and the recipient.
     """
     frappe.has_permission("HD Ticket", "write", ticket, throw=True)
     provider = load_provider(channel)
@@ -242,9 +276,28 @@ def send_channel_reply(
         frappe.throw(
             _("This conversation channel is not available."), frappe.ValidationError
         )
-    result = provider.send_ticket_reply(
-        ticket=ticket, message=message, request_id=request_id
-    )
+    if file and template:
+        frappe.throw(_("Send either a file or a template."), frappe.ValidationError)
+    if file:
+        sender = getattr(provider, "send_ticket_media", None)
+        if not callable(sender):
+            frappe.throw(_("This channel cannot send files."), frappe.ValidationError)
+        result = sender(ticket=ticket, file=file, request_id=request_id, message=message or "")
+    elif template:
+        sender = getattr(provider, "send_ticket_template", None)
+        if not callable(sender):
+            frappe.throw(_("This channel cannot send templates."), frappe.ValidationError)
+        result = sender(
+            ticket=ticket,
+            template=template,
+            language=language or "",
+            request_id=request_id,
+            parameters=parameters,
+        )
+    else:
+        result = provider.send_ticket_reply(
+            ticket=ticket, message=message, request_id=request_id
+        )
     if not isinstance(result, dict):
         frappe.throw(_("The reply was not saved."), frappe.ValidationError)
     return {field: result.get(field) for field in _RESULT_FIELDS}

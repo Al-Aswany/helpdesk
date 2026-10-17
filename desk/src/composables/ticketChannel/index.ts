@@ -196,6 +196,10 @@ function controllerFor(entry: Entry, key: string): ReplyController {
         channel: key,
         message: args.message,
         request_id: args.requestId,
+        file: args.file || undefined,
+        template: args.template || undefined,
+        language: args.language || undefined,
+        parameters: args.parameters || undefined,
       }) as Promise<SendResult>,
     refresh: () => refresh(entry),
     newId: uuid,
@@ -219,6 +223,12 @@ export interface TicketChannel {
   shouldPoll: ComputedRef<boolean>;
   setDraft(text: string): void;
   submit(): Promise<SubmitOutcome>;
+  submitTemplate(
+    template: string,
+    language: string,
+    parameters: string[]
+  ): Promise<SubmitOutcome>;
+  submitFile(file: string, caption: string): Promise<SubmitOutcome>;
   discardDraft(): Promise<void>;
   discardPending(): Promise<void>;
   restorePendingText(): void;
@@ -305,6 +315,18 @@ export function useTicketChannel(
     submit: () => {
       const current = entry.value;
       const outcome = requireController().submit();
+      current?.poller.start();
+      return outcome;
+    },
+    submitTemplate: (template: string, language: string, parameters: string[]) => {
+      const current = entry.value;
+      const outcome = requireController().submitTemplate(template, language, parameters);
+      current?.poller.start();
+      return outcome;
+    },
+    submitFile: (file: string, caption: string) => {
+      const current = entry.value;
+      const outcome = requireController().submitFile(file, caption);
       current?.poller.start();
       return outcome;
     },

@@ -24,7 +24,7 @@
           <span aria-hidden="true">·</span>
           <component
             :is="incoming ? LucideArrowDownLeft : LucideArrowUpRight"
-            class="size-3.5 shrink-0"
+            class="size-3.5 shrink-0 rtl:-scale-x-100"
             aria-hidden="true"
           />
           <span>{{ incoming ? __("Received") : __("Sent") }}</span>
@@ -80,6 +80,15 @@
         @click="reuse"
       />
     </div>
+
+    <p
+      v-if="activity.attachmentName"
+      dir="auto"
+      class="mt-2 text-p-sm text-ink-gray-6"
+      data-testid="channel-attachment-name"
+    >
+      {{ activity.attachmentName }}
+    </p>
 
     <div v-if="activity.attachments?.length" class="mt-2 flex flex-wrap gap-2">
       <AttachmentItem

@@ -26,6 +26,10 @@ export interface PendingRequest {
   message: string;
   /** The backend answered with a stored row; only its visibility is awaited. */
   acknowledged: boolean;
+  file?: string | null;
+  template?: string | null;
+  language?: string | null;
+  parameters?: string[] | null;
 }
 
 export interface StoredReply {
@@ -65,7 +69,14 @@ export type SubmitOutcome =
 export interface ReplyDeps {
   load(): StoredReply | null;
   save(value: StoredReply | null): void;
-  send(args: { message: string; requestId: string }): Promise<SendResult>;
+  send(args: {
+    message: string;
+    requestId: string;
+    file?: string | null;
+    template?: string | null;
+    language?: string | null;
+    parameters?: string[] | null;
+  }): Promise<SendResult>;
   /** Read-only: the current outbound rows, or null when they could not be read. */
   refresh(): Promise<OutboundRow[] | null>;
   newId(): string;
@@ -140,6 +151,10 @@ export class ReplyController {
         requestId: pending.requestId,
         message: pending.message,
         acknowledged: Boolean(pending.acknowledged),
+        file: pending.file ?? null,
+        template: pending.template ?? null,
+        language: pending.language ?? null,
+        parameters: Array.isArray(pending.parameters) ? pending.parameters : null,
       };
       // A request that was in flight when the page went away is unanswered.
       // Nothing is sent here: observe() or the agent's retry settles it.
@@ -177,8 +192,33 @@ export class ReplyController {
   }
 
   submit(): Promise<SubmitOutcome> {
+    return this.submitPrepared(this.draft, {});
+  }
+
+  /** Explicit template send. Does not invent a template when the list is empty. */
+  submitTemplate(
+    template: string,
+    language: string,
+    parameters: string[]
+  ): Promise<SubmitOutcome> {
+    const label = template;
+    return this.submitPrepared(label, { template, language, parameters });
+  }
+
+  submitFile(file: string, caption: string): Promise<SubmitOutcome> {
+    return this.submitPrepared(caption || file, { file });
+  }
+
+  private submitPrepared(
+    text: string,
+    extra: {
+      file?: string;
+      template?: string;
+      language?: string;
+      parameters?: string[];
+    }
+  ): Promise<SubmitOutcome> {
     if (this.inFlight) return this.inFlight;
-    const text = this.draft;
     if (!text.trim()) return Promise.resolve({ kind: "empty" });
     if (this.pending && this.pending.message !== text) {
       // Editing while a request is unanswered would start a second logical
@@ -196,6 +236,10 @@ export class ReplyController {
         requestId: this.deps.newId(),
         message: text,
         acknowledged: false,
+        file: extra.file ?? null,
+        template: extra.template ?? null,
+        language: extra.language ?? null,
+        parameters: extra.parameters ?? null,
       };
     }
     this.phase = "sending";
@@ -261,7 +305,14 @@ export class ReplyController {
 
   private async run(request: PendingRequest): Promise<SubmitOutcome> {
     const requestId = request.requestId;
-    const sent = this.deps.send({ message: request.message, requestId });
+    const sent = this.deps.send({
+      message: request.message,
+      requestId,
+      file: request.file,
+      template: request.template,
+      language: request.language,
+      parameters: request.parameters,
+    });
     let result: SendResult;
     try {
       result = await this.withTimeout(sent);

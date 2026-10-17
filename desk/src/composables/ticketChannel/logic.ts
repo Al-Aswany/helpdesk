@@ -11,6 +11,9 @@ export type OutboundState =
   | "Queued"
   | "Sending"
   | "Accepted"
+  | "Sent"
+  | "Delivered"
+  | "Read"
   | "Blocked"
   | "Failed"
   | "Uncertain";
@@ -29,6 +32,10 @@ export interface OutboundRow {
   sending_started_at: string | null;
   accepted_at: string | null;
   completed_at: string | null;
+  intent_kind?: string | null;
+  attachment_name?: string | null;
+  template_name?: string | null;
+  template_language?: string | null;
 }
 
 export interface ChannelDescriptor {
@@ -42,6 +49,13 @@ export interface ChannelDescriptor {
   reply: { enabled: boolean; max_length: number | null };
   window: { open: boolean; reason: string | null; seconds_left: number };
   capabilities: { text: boolean; media: boolean; templates: boolean };
+  templates?: {
+    name: string;
+    language: string;
+    label: string;
+    body: string;
+    parameter_count: number;
+  }[];
   current_ticket: string | null;
   outbound: OutboundRow[];
 }
@@ -186,6 +200,26 @@ export function outboundView(row: OutboundRow): OutboundView {
         false,
         false
       );
+    case "Sent":
+      return view(
+        row,
+        "Sent",
+        "blue",
+        "WhatsApp has sent this message. It is not confirmed as delivered.",
+        false,
+        false
+      );
+    case "Delivered":
+      return view(
+        row,
+        "Delivered",
+        "green",
+        "Delivered to the customer's phone.",
+        false,
+        false
+      );
+    case "Read":
+      return view(row, "Read", "green", "The customer has read this message.", false, false);
     case "Blocked":
       return view(
         row,
@@ -248,7 +282,13 @@ export function reasonCopy(reason: string | null | undefined): ReasonCopy {
       return {
         title: "The reply window has closed",
         detail:
-          "WhatsApp only allows free-form replies for a limited time after the customer's last message. You can reply here again once they write to you.",
+          "Free-form WhatsApp replies are closed. Send an approved template, or wait until the customer writes again.",
+      };
+    case "no_approved_template":
+      return {
+        title: "No approved template is available",
+        detail:
+          "The reply window has closed and this account has no approved text template to send.",
       };
     case "account_paused":
       return {
@@ -452,6 +492,7 @@ export function buildMessageActivities(
       sender: { name: row.requested_by ?? "", full_name: "" },
       outbound: row,
       attachments: [],
+      attachmentName: row.attachment_name || "",
     });
   }
   return activities;

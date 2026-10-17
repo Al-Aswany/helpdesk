@@ -1,4 +1,5 @@
 import { LOGIN_PAGE, router } from "@/router";
+import { clearChannelReplyStorage } from "@/composables/userStorage";
 import { call, createResource } from "frappe-ui";
 import { defineStore } from "pinia";
 import { computed, ComputedRef, Ref, ref } from "vue";
@@ -72,6 +73,7 @@ export const useAuthStore = defineStore("auth", () => {
   // module-scope userStorage keys in sync with the session cookie.
 
   function logout() {
+    clearChannelReplyStorage();
     user.value = null;
     call(URI_LOGOUT).then(() => {
       window.location.href = LOGIN_PAGE;
