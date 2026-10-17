@@ -120,20 +120,82 @@
         </form>
         <div
           v-if="resolved.canSend && resolved.descriptor.capabilities.media"
-          class="flex items-center gap-2"
+          class="flex flex-col gap-2"
         >
-          <input
-            ref="fileRef"
-            type="file"
-            accept="image/jpeg,image/png,audio/aac,audio/amr,audio/mpeg,audio/mp4,audio/ogg,video/mp4,video/3gpp,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation"
-            class="text-p-sm"
-            data-testid="channel-file"
-            @change="onFile"
-          />
-          <span v-if="mediaLimitLabel" class="text-p-xs text-ink-gray-5">
-            {{ mediaLimitLabel }}
-          </span>
+          <div class="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              theme="gray"
+              variant="ghost"
+              size="sm"
+              icon-left="lucide-paperclip"
+              :label="__('Attach file')"
+              :disabled="busy || Boolean(state.pending)"
+              data-testid="channel-attach"
+              @click="openFilePicker"
+            />
+            <input
+              ref="fileRef"
+              type="file"
+              tabindex="-1"
+              aria-hidden="true"
+              accept="image/jpeg,image/png,audio/aac,audio/amr,audio/mpeg,audio/mp4,audio/ogg,video/mp4,video/3gpp,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+              class="sr-only"
+              data-testid="channel-file"
+              @change="onFile"
+            />
+            <span v-if="mediaLimitLabel" class="text-p-xs text-ink-gray-5">
+              {{ mediaLimitLabel }}
+            </span>
+          </div>
+          <div
+            v-if="staged"
+            class="flex items-center gap-3 rounded-md border border-outline-gray-2 p-2"
+            data-testid="channel-attachment-preview"
+          >
+            <img
+              v-if="previewUrl"
+              :src="previewUrl"
+              alt=""
+              class="h-14 w-14 shrink-0 rounded object-cover"
+            />
+            <div class="min-w-0 flex-1">
+              <p dir="auto" class="truncate text-p-sm text-ink-gray-8">
+                {{ staged.name }}
+              </p>
+              <p class="text-p-xs text-ink-gray-5">
+                {{ formatSize(staged.size) }}
+              </p>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              :label="__('Replace')"
+              :disabled="busy || Boolean(state.pending)"
+              data-testid="channel-attachment-replace"
+              @click="openFilePicker"
+            />
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              theme="red"
+              :label="__('Remove')"
+              :disabled="busy || Boolean(state.pending)"
+              data-testid="channel-attachment-remove"
+              @click="removeAttachment"
+            />
+          </div>
         </div>
+        <p
+          v-if="uploading"
+          class="text-p-sm text-ink-gray-6"
+          role="status"
+          data-testid="channel-upload-progress"
+        >
+          {{ __("Uploading attachment...") }}
+        </p>
         <p
           v-if="uploadError"
           class="text-p-sm text-ink-red-6"
@@ -273,7 +335,7 @@
           class="min-h-[7rem] max-h-[30vh] w-full resize-y rounded border border-outline-gray-2 bg-surface-white px-3 py-2 text-base text-ink-gray-8 placeholder-ink-gray-4 transition-colors hover:border-outline-gray-3 focus:border-outline-gray-4 focus:outline-none focus:ring-2 focus:ring-outline-gray-3 disabled:cursor-not-allowed disabled:opacity-60"
           :placeholder="placeholder ? __(placeholder) : ''"
           :aria-label="__('Message to the customer')"
-          :disabled="!resolved.canSend"
+          :disabled="!resolved.canSend || busy"
           :aria-invalid="tooLong"
           data-testid="channel-textarea"
           @keydown.ctrl.enter.prevent="submit"
@@ -299,7 +361,7 @@
             variant="solid"
             :label="label"
             :disabled="!canSubmit"
-            :loading="state.phase === 'sending'"
+            :loading="busy || state.phase === 'sending'"
             data-testid="channel-send"
             @click="submit"
           />
@@ -311,14 +373,16 @@
 
 <script setup lang="ts">
 import {
+  AttachmentComposer,
   formatWindowLeft,
   reasonCopy,
   useTicketChannel,
+  type StagedAttachment,
 } from "@/composables/ticketChannel";
 import { __ } from "@/translation";
 import { useNow } from "@vueuse/core";
 import { Button, LoadingIndicator } from "frappe-ui";
-import { computed, nextTick, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import LucideTriangleAlert from "~icons/lucide/triangle-alert";
 import ChannelRecipient from "./ChannelRecipient.vue";
 
@@ -335,8 +399,6 @@ const resolved = channel.mode;
 const state = channel.reply;
 const textareaRef = ref<HTMLTextAreaElement | null>(null);
 const resolutionNeeded = ref(false);
-/** An attempt is running or unconfirmed; close the box once it is settled. */
-const attempting = ref(false);
 
 const draft = computed({
   get: () => state.value.draft,
@@ -367,8 +429,11 @@ const canSubmit = computed(
     resolved.value.canSend &&
     state.value.phase !== "sending" &&
     state.value.phase !== "confirming" &&
-    draft.value.trim().length > 0 &&
-    !tooLong.value
+    !busy.value &&
+    !tooLong.value &&
+    (draft.value.trim().length > 0 ||
+      Boolean(staged.value) ||
+      Boolean(state.value.pending?.file))
 );
 
 const unavailableCopy = computed(() =>
@@ -395,6 +460,26 @@ const templateKey = ref("");
 const templateParameters = ref<string[]>([]);
 const fileRef = ref<HTMLInputElement | null>(null);
 const uploadError = ref("");
+const busy = ref(false);
+const uploading = ref(false);
+const staged = ref<StagedAttachment | null>(null);
+const previewUrl = ref("");
+const localFiles = new Map<string, File>();
+let editorFlight: Promise<boolean> | null = null;
+const awaitingResult = ref(false);
+
+const composer = new AttachmentComposer({
+  upload: uploadStagedFile,
+  submitText: () => {
+    awaitingResult.value = true;
+    return channel.submit();
+  },
+  submitFile: (file, caption) => {
+    awaitingResult.value = true;
+    return channel.submitFile(file, caption);
+  },
+  pendingFile: () => state.value.pending?.file || null,
+});
 const mediaLimits = computed(() =>
   resolved.value.mode === "channel"
     ? resolved.value.descriptor.capabilities.media_limits || {}
@@ -434,9 +519,57 @@ async function sendTemplate() {
   );
 }
 
-async function onFile(event: Event) {
+function openFilePicker() {
+  if (busy.value || state.value.pending) return;
+  fileRef.value?.click();
+}
+
+function formatSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) {
+    return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  }
+  return `${Math.max(1, Math.round(bytes / (1024 * 1024)))} MB`;
+}
+
+function revokePreview() {
+  if (previewUrl.value) URL.revokeObjectURL(previewUrl.value);
+  previewUrl.value = "";
+}
+
+function rememberStaged(file: File) {
+  const token = `${file.name}:${file.size}:${file.lastModified}:${
+    crypto.randomUUID?.() ?? Math.random().toString(36).slice(2)
+  }`;
+  const previous = staged.value?.token;
+  if (previous && previous !== token) localFiles.delete(previous);
+  localFiles.set(token, file);
+  composer.stage({
+    token,
+    name: file.name,
+    size: file.size,
+    type: file.type,
+  });
+  staged.value = composer.staged ? { ...composer.staged } : null;
+  revokePreview();
+  if (file.type.startsWith("image/"))
+    previewUrl.value = URL.createObjectURL(file);
+}
+
+function removeAttachment() {
+  if (busy.value || state.value.pending) return;
+  const token = staged.value?.token;
+  if (token) localFiles.delete(token);
+  composer.remove();
+  staged.value = null;
+  revokePreview();
+  uploadError.value = "";
+}
+
+function onFile(event: Event) {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
+  input.value = "";
   if (!file) return;
   uploadError.value = "";
   const kind = file.type.startsWith("image/")
@@ -453,35 +586,59 @@ async function onFile(event: Event) {
           String(Math.floor(limit / 1024 / 1024)),
         ])
       : __("File uploads are not configured for this channel.");
-    input.value = "";
     return;
   }
-  const body = new FormData();
-  body.append("file", file, file.name);
-  body.append("is_private", "1");
-  body.append("doctype", "HD Ticket");
-  body.append("docname", props.ticketId);
-  body.append("folder", "Home/Attachments");
-  const response = await fetch("/api/method/upload_file", {
-    method: "POST",
-    body,
-    headers: {
-      "X-Frappe-CSRF-Token":
-        (window as unknown as { csrf_token?: string }).csrf_token || "",
-    },
-  });
-  if (!response.ok) {
-    uploadError.value = __(
-      "The file could not be uploaded. No message was sent."
-    );
-    input.value = "";
-    return;
-  }
-  const payload = await response.json();
-  const name = payload?.message?.name;
-  if (name) await channel.submitFile(name, draft.value);
-  input.value = "";
+  rememberStaged(file);
 }
+
+async function uploadStagedFile(token: string) {
+  const file = localFiles.get(token);
+  const ticketId = props.ticketId;
+  if (!file || !ticketId) throw new Error("missing");
+  uploading.value = true;
+  try {
+    const body = new FormData();
+    body.append("file", file, file.name);
+    body.append("is_private", "1");
+    body.append("doctype", "HD Ticket");
+    body.append("docname", ticketId);
+    body.append("folder", "Home/Attachments");
+    const response = await fetch("/api/method/upload_file", {
+      method: "POST",
+      body,
+      headers: {
+        "X-Frappe-CSRF-Token":
+          (window as unknown as { csrf_token?: string }).csrf_token || "",
+      },
+    });
+    if (!response.ok) throw new Error("upload failed");
+    const payload = await response.json();
+    const name = payload?.message?.name;
+    if (!name || typeof name !== "string") throw new Error("upload failed");
+    return name;
+  } finally {
+    uploading.value = false;
+  }
+}
+
+function clearLocalAttachment() {
+  const token = staged.value?.token;
+  if (token) localFiles.delete(token);
+  composer.clearAfterConfirmation();
+  staged.value = null;
+  revokePreview();
+}
+
+watch(
+  () => props.ticketId,
+  () => {
+    clearLocalAttachment();
+    uploadError.value = "";
+    awaitingResult.value = false;
+  }
+);
+
+onBeforeUnmount(revokePreview);
 const currentTicket = computed(() =>
   resolved.value.mode === "unavailable"
     ? resolved.value.descriptor?.current_ticket
@@ -518,13 +675,33 @@ const windowHint = computed(() => {
     : "";
 });
 
-async function submit() {
+function submit() {
+  if (editorFlight) return editorFlight;
   if (!canSubmit.value) return false;
-  attempting.value = true;
-  const outcome = await channel.submit();
+  busy.value = true;
+  editorFlight = runSubmit().finally(() => {
+    editorFlight = null;
+    busy.value = false;
+  });
+  return editorFlight;
+}
+
+async function runSubmit() {
+  uploadError.value = "";
+  const outcome = await composer.send(draft.value);
+  if (outcome.kind === "upload_failed") {
+    uploadError.value = __(
+      "The file could not be uploaded. No message was sent."
+    );
+    awaitingResult.value = false;
+    return false;
+  }
+  if (outcome.kind === "empty") {
+    awaitingResult.value = false;
+    return false;
+  }
   resolutionNeeded.value = outcome.kind === "needs_resolution";
   if (outcome.kind !== "unconfirmed" && outcome.kind !== "saved") {
-    // Settled one way or another; the watcher below decides about closing.
     settle();
   }
   return outcome.kind === "confirmed" || outcome.kind === "saved";
@@ -532,10 +709,13 @@ async function submit() {
 
 function settle() {
   const snapshot = state.value;
-  if (!attempting.value) return;
+  if (!awaitingResult.value) return;
   if (snapshot.phase === "idle" && !snapshot.pending) {
-    attempting.value = false;
-    if (!snapshot.notice && !snapshot.draft) emit("submit");
+    awaitingResult.value = false;
+    if (!snapshot.notice) {
+      clearLocalAttachment();
+      if (!snapshot.draft) emit("submit");
+    }
   }
 }
 
@@ -563,13 +743,14 @@ function restore() {
 
 async function discardRequest() {
   resolutionNeeded.value = false;
-  attempting.value = false;
+  awaitingResult.value = false;
   await channel.discardPending();
 }
 
 async function discard() {
   resolutionNeeded.value = false;
-  attempting.value = false;
+  awaitingResult.value = false;
+  clearLocalAttachment();
   await channel.discardDraft();
   emit("discard");
 }

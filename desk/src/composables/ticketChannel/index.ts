@@ -37,6 +37,10 @@ import {
 } from "./replyController";
 
 export * from "./logic";
+export {
+  AttachmentComposer,
+  type StagedAttachment,
+} from "./attachmentComposer";
 export type { Notice, ReplySnapshot, SubmitOutcome } from "./replyController";
 
 const EMPTY_SNAPSHOT: ReplySnapshot = {
@@ -318,9 +322,17 @@ export function useTicketChannel(
       current?.poller.start();
       return outcome;
     },
-    submitTemplate: (template: string, language: string, parameters: string[]) => {
+    submitTemplate: (
+      template: string,
+      language: string,
+      parameters: string[]
+    ) => {
       const current = entry.value;
-      const outcome = requireController().submitTemplate(template, language, parameters);
+      const outcome = requireController().submitTemplate(
+        template,
+        language,
+        parameters
+      );
       current?.poller.start();
       return outcome;
     },

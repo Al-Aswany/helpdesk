@@ -424,6 +424,25 @@ test("source label prefers the channel, then the field, then portal or mail", ()
   );
 });
 
+test("an empty media caption is not replaced by the file name", () => {
+  const activities = buildMessageActivities(
+    [],
+    descriptor({
+      outbound: [
+        outbound({
+          body: "",
+          intent_kind: "Media",
+          attachment_name: "photo.png",
+        }),
+      ],
+    })
+  );
+  assert.equal(activities.length, 1);
+  assert.equal(activities[0]!.content, "");
+  assert.equal(activities[0]!.attachmentName, "photo.png");
+  assert.notEqual(activities[0]!.content, "70d7c1f276");
+});
+
 test("draft storage keys are separated by user, channel and ticket", () => {
   const a = replyStorageKey("a@x.com", "whatsapp", "12");
   assert.notEqual(a, replyStorageKey("b@x.com", "whatsapp", "12"));

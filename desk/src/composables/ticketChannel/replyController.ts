@@ -194,6 +194,9 @@ export class ReplyController {
   }
 
   submit(): Promise<SubmitOutcome> {
+    if (this.pending?.file) {
+      return this.submitPrepared(this.draft, { file: this.pending.file }, true);
+    }
     return this.submitPrepared(this.draft, {});
   }
 
@@ -207,8 +210,12 @@ export class ReplyController {
     return this.submitPrepared(label, { template, language, parameters });
   }
 
+  /**
+   * Queue one media reply. `caption` is the agent's text and may be empty.
+   * `file` is the uploaded File name; it is never copied into the caption.
+   */
   submitFile(file: string, caption: string): Promise<SubmitOutcome> {
-    return this.submitPrepared(caption || file, { file });
+    return this.submitPrepared(caption, { file }, true);
   }
 
   private submitPrepared(
@@ -218,14 +225,17 @@ export class ReplyController {
       template?: string;
       language?: string;
       parameters?: string[];
-    }
+    },
+    allowEmpty = false
   ): Promise<SubmitOutcome> {
     if (this.inFlight) return this.inFlight;
-    if (!text.trim()) return Promise.resolve({ kind: "empty" });
     if (this.pending && this.pending.message !== text) {
       // Editing while a request is unanswered would start a second logical
       // message next to one that may already be queued.
       return Promise.resolve({ kind: "needs_resolution" });
+    }
+    if (!this.pending && !text.trim() && !(allowEmpty && extra.file)) {
+      return Promise.resolve({ kind: "empty" });
     }
     if (this.pending?.acknowledged) {
       // The backend already stored this request. Only its row is awaited.

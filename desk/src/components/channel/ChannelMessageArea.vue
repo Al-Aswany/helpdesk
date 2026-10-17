@@ -54,6 +54,7 @@
 
     <!-- Customer text is plain text: interpolation only, never v-html -->
     <p
+      v-if="(activity.content || '').trim()"
       dir="auto"
       class="whitespace-pre-wrap break-words text-p-base text-ink-gray-8"
       data-testid="channel-message-text"

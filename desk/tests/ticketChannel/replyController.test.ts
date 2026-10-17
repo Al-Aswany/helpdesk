@@ -46,7 +46,11 @@ function harness(
   overrides: Partial<ReplyDeps> = {},
   stored: StoredReply | null = null
 ) {
-  const calls: { message: string; requestId: string }[] = [];
+  const calls: {
+    message: string;
+    requestId: string;
+    file?: string | null;
+  }[] = [];
   const timers: { fn: () => void; ms: number; cleared: boolean }[] = [];
   let id = 0;
   const env = {
@@ -393,6 +397,84 @@ test("an acknowledged request is never posted again", async () => {
   env.rows = [];
   assert.equal((await controller.submit()).kind, "saved");
   assert.equal(env.calls.length, 1);
+});
+
+test("an empty media caption is not replaced by the file name", async () => {
+  const { env, make } = harness();
+  env.rows = [];
+  const controller = make();
+  const outcome = await controller.submitFile("70d7c1f276", "");
+  assert.equal(outcome.kind, "saved");
+  assert.equal(env.calls.length, 1);
+  assert.equal(env.calls[0]!.message, "");
+  assert.equal(env.calls[0]!.file, "70d7c1f276");
+  assert.equal(controller.snapshot().pending?.message, "");
+});
+
+test("a media caption is sent exactly, including a hexadecimal string", async () => {
+  const { env, make } = harness();
+  env.rows = [];
+  const controller = make();
+  controller.setDraft("70d7c1f276");
+  await controller.submitFile("8bf938bf57", "70d7c1f276");
+  assert.equal(env.calls[0]!.message, "70d7c1f276");
+  assert.equal(env.calls[0]!.file, "8bf938bf57");
+});
+
+test("a second media submit joins the in-flight request", async () => {
+  const { env, make } = harness();
+  env.rows = [];
+  let release: (value: ReturnType<typeof reply>) => void = () => undefined;
+  env.sendImpl = (args) =>
+    new Promise((resolve) => {
+      release = () => resolve(reply(args.requestId, "Queued", { message: "" }));
+    });
+  const controller = make();
+  const first = controller.submitFile("70d7c1f276", "");
+  const second = controller.submitFile("other-file", "other caption");
+  assert.equal(env.calls.length, 1);
+  assert.equal(env.calls[0]!.file, "70d7c1f276");
+  assert.equal(env.calls[0]!.message, "");
+  release(reply("id-1"));
+  const [a, b] = await Promise.all([first, second]);
+  assert.equal(a.kind, b.kind);
+  assert.equal(env.calls.length, 1);
+});
+
+test("a lost media response retries the same file and caption", async () => {
+  const { env, make } = harness();
+  env.rows = [];
+  env.sendImpl = () => Promise.reject(new TypeError("offline"));
+  const controller = make();
+  controller.setDraft("");
+  assert.equal(
+    (await controller.submitFile("70d7c1f276", "")).kind,
+    "unconfirmed"
+  );
+  assert.equal(env.calls.length, 1);
+  env.sendImpl = (args) =>
+    Promise.resolve(reply(args.requestId, "Queued", { message: "" }));
+  assert.equal((await controller.submit()).kind, "saved");
+  assert.equal(env.calls.length, 2);
+  assert.equal(env.calls[1]!.requestId, env.calls[0]!.requestId);
+  assert.equal(env.calls[1]!.file, "70d7c1f276");
+  assert.equal(env.calls[1]!.message, "");
+});
+
+test("remounting a media request does not send", async () => {
+  const first = harness();
+  first.env.rows = [];
+  first.env.sendImpl = () => Promise.reject(new TypeError("offline"));
+  const original = first.make();
+  await original.submitFile("70d7c1f276", "roof");
+  const second = harness({}, first.env.stored);
+  second.env.rows = [];
+  const remounted = second.make();
+  assert.equal(second.env.calls.length, 0);
+  assert.equal(remounted.snapshot().pending?.file, "70d7c1f276");
+  assert.equal(remounted.snapshot().pending?.message, "roof");
+  assert.equal(remounted.observe([]), false);
+  assert.equal(second.env.calls.length, 0);
 });
 
 test("the persisted draft expires and stays scoped by its storage", () => {
