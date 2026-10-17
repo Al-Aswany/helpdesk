@@ -176,6 +176,7 @@ def clean_descriptor(key: str, raw: dict) -> dict:
             "text": bool(capabilities.get("text")),
             "media": bool(capabilities.get("media")),
             "templates": bool(capabilities.get("templates")),
+            "media_limits": _media_limits(capabilities.get("media_limits")),
         },
         "templates": _templates(raw.get("templates")),
         "current_ticket": _text(raw.get("current_ticket")) or None,
@@ -223,6 +224,18 @@ def _outbound(rows) -> list[dict]:
 
 def _dict(value) -> dict:
     return value if isinstance(value, dict) else {}
+
+
+def _media_limits(value) -> dict[str, int]:
+    source = _dict(value)
+    cleaned = {}
+    for kind in ("image", "audio", "video", "document"):
+        try:
+            amount = int(source.get(kind) or 0)
+        except (TypeError, ValueError):
+            amount = 0
+        cleaned[kind] = min(max(amount, 0), 100 * 1024 * 1024)
+    return cleaned
 
 
 def _text(value, limit: int = _TEXT_LIMIT) -> str:

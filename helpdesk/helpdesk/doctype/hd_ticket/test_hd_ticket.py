@@ -1758,16 +1758,34 @@ class TestHDTicket(FrappeTestCase):
         self.assertEqual(communication_attachments, 4)
         self.assertEqual(ticket_attachments, 4)
 
-        # delete all files
-        files = frappe.get_all(
-            "File",
-            filters={
-                "attached_to_doctype": ["in", ["Communication", "HD Ticket"]],
-            },
-            pluck="name",
+        # Delete only this test's uploads and copies.  The old broad query
+        # removed unrelated private files left by other integration fixtures
+        # and did so while the session was still the agent.
+        files = {file1, file2}
+        files.update(
+            frappe.get_all(
+                "File",
+                filters={
+                    "attached_to_doctype": "Communication",
+                    "attached_to_name": ["in", communications],
+                },
+                pluck="name",
+            )
         )
+        files.update(
+            frappe.get_all(
+                "File",
+                filters={
+                    "attached_to_doctype": "HD Ticket",
+                    "attached_to_name": ["in", ticket_ids],
+                },
+                pluck="name",
+            )
+        )
+        frappe.set_user("Administrator")
         for file in files:
-            frappe.delete_doc("File", file)
+            if frappe.db.exists("File", file):
+                frappe.delete_doc("File", file, ignore_permissions=True, force=True)
 
     def test_bulk_reply_writes_nothing_if_one_ticket_is_off_limits(self):
         """Everything is checked before anything is written, so a ticket the agent

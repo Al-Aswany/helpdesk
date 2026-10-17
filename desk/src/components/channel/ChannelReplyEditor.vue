@@ -86,7 +86,11 @@
               class="mt-1 w-full rounded border border-outline-gray-2 bg-surface-white px-2 py-1"
               data-testid="channel-template-select"
             >
-              <option v-for="item in templates" :key="item.name + item.language" :value="item.name + '|' + item.language">
+              <option
+                v-for="item in templates"
+                :key="item.name + item.language"
+                :value="item.name + '|' + item.language"
+              >
                 {{ item.label }}
               </option>
             </select>
@@ -114,15 +118,30 @@
             />
           </div>
         </form>
-        <div v-if="resolved.canSend && resolved.descriptor.capabilities.media" class="flex items-center gap-2">
+        <div
+          v-if="resolved.canSend && resolved.descriptor.capabilities.media"
+          class="flex items-center gap-2"
+        >
           <input
             ref="fileRef"
             type="file"
+            accept="image/jpeg,image/png,audio/aac,audio/amr,audio/mpeg,audio/mp4,audio/ogg,video/mp4,video/3gpp,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation"
             class="text-p-sm"
             data-testid="channel-file"
             @change="onFile"
           />
+          <span v-if="mediaLimitLabel" class="text-p-xs text-ink-gray-5">
+            {{ mediaLimitLabel }}
+          </span>
         </div>
+        <p
+          v-if="uploadError"
+          class="text-p-sm text-ink-red-6"
+          role="alert"
+          data-testid="channel-file-error"
+        >
+          {{ uploadError }}
+        </p>
         <p
           v-if="windowHint"
           class="text-p-xs text-ink-gray-5"
@@ -151,10 +170,26 @@
             <p class="mt-0.5">
               {{
                 __(
-                  "It could not be matched to an earlier attempt. Your text is kept below. Check the conversation, then send it again."
+                  "This request key already belongs to different details. The unresolved request is kept. Check its status, then discard it only after you confirm it was not sent."
                 )
               }}
             </p>
+            <div class="mt-2 flex flex-wrap gap-2">
+              <Button size="sm" :label="__('Check status')" @click="check" />
+              <Button
+                v-if="resolutionNeeded"
+                size="sm"
+                :label="__('Restore text')"
+                @click="restore"
+              />
+              <Button
+                size="sm"
+                variant="subtle"
+                theme="red"
+                :label="__('Discard request')"
+                @click="discardRequest"
+              />
+            </div>
           </div>
           <div
             v-else-if="state.notice?.kind === 'rejected'"
@@ -241,6 +276,8 @@
           :disabled="!resolved.canSend"
           :aria-invalid="tooLong"
           data-testid="channel-textarea"
+          @keydown.ctrl.enter.prevent="submit"
+          @keydown.meta.enter.prevent="submit"
         />
         <p
           v-if="showCounter"
@@ -350,19 +387,41 @@ const holdCopy = computed(() => {
   return reasonCopy(resolved.value.holdReason);
 });
 const templates = computed(() =>
-  resolved.value.mode === "channel" ? resolved.value.descriptor.templates || [] : []
+  resolved.value.mode === "channel"
+    ? resolved.value.descriptor.templates || []
+    : []
 );
 const templateKey = ref("");
 const templateParameters = ref<string[]>([]);
 const fileRef = ref<HTMLInputElement | null>(null);
-const selectedTemplate = computed(() =>
-  templates.value.find((item) => `${item.name}|${item.language}` === templateKey.value)
+const uploadError = ref("");
+const mediaLimits = computed(() =>
+  resolved.value.mode === "channel"
+    ? resolved.value.descriptor.capabilities.media_limits || {}
+    : {}
 );
-const templateParameterCount = computed(() => selectedTemplate.value?.parameter_count || 0);
+const mediaLimitLabel = computed(() => {
+  const document = mediaLimits.value.document || 0;
+  return document
+    ? __("Documents up to {0} MiB", [
+        String(Math.floor(document / 1024 / 1024)),
+      ])
+    : "";
+});
+const selectedTemplate = computed(() =>
+  templates.value.find(
+    (item) => `${item.name}|${item.language}` === templateKey.value
+  )
+);
+const templateParameterCount = computed(
+  () => selectedTemplate.value?.parameter_count || 0
+);
 const templateReady = computed(() => {
   const count = templateParameterCount.value;
   if (!selectedTemplate.value) return false;
-  return templateParameters.value.slice(0, count).every((value) => value && value.trim());
+  return templateParameters.value
+    .slice(0, count)
+    .every((value) => value && value.trim());
 });
 
 async function sendTemplate() {
@@ -379,6 +438,24 @@ async function onFile(event: Event) {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
   if (!file) return;
+  uploadError.value = "";
+  const kind = file.type.startsWith("image/")
+    ? "image"
+    : file.type.startsWith("audio/")
+    ? "audio"
+    : file.type.startsWith("video/")
+    ? "video"
+    : "document";
+  const limit = mediaLimits.value[kind] || 0;
+  if (!limit || file.size > limit) {
+    uploadError.value = limit
+      ? __("This file is larger than the configured {0} MiB limit.", [
+          String(Math.floor(limit / 1024 / 1024)),
+        ])
+      : __("File uploads are not configured for this channel.");
+    input.value = "";
+    return;
+  }
   const body = new FormData();
   body.append("file", file, file.name);
   body.append("is_private", "1");
@@ -393,6 +470,13 @@ async function onFile(event: Event) {
         (window as unknown as { csrf_token?: string }).csrf_token || "",
     },
   });
+  if (!response.ok) {
+    uploadError.value = __(
+      "The file could not be uploaded. No message was sent."
+    );
+    input.value = "";
+    return;
+  }
   const payload = await response.json();
   const name = payload?.message?.name;
   if (name) await channel.submitFile(name, draft.value);

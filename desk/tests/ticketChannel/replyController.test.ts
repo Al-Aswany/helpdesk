@@ -272,7 +272,7 @@ test("a blocked reply keeps the draft and the next attempt is a new request", as
   assert.equal(snap.draft, "");
 });
 
-test("a conflict keeps the draft and drops the request id", async () => {
+test("a conflict keeps the unresolved request id until explicit discard", async () => {
   const { env, make } = harness();
   env.sendImpl = (args) =>
     Promise.resolve(
@@ -286,15 +286,21 @@ test("a conflict keeps the draft and drops the request id", async () => {
   controller.setDraft("Text");
   assert.equal((await controller.submit()).kind, "conflict");
   const snap = controller.snapshot();
-  assert.equal(snap.pending, null);
+  assert.equal(snap.pending?.requestId, "id-1");
+  assert.equal(snap.phase, "unconfirmed");
   assert.equal(snap.draft, "Text");
   assert.equal(snap.notice?.kind, "conflict");
   controller.setDraft("Text!");
+  assert.equal((await controller.submit()).kind, "needs_resolution");
   assert.equal(
-    controller.snapshot().notice,
-    null,
-    "editing clears the stale conflict message"
+    env.calls.length,
+    1,
+    "a conflict never creates a fresh UUID automatically"
   );
+  controller.restorePendingText();
+  assert.equal(controller.snapshot().draft, "Text");
+  await controller.discardPending();
+  assert.equal(controller.snapshot().pending, null);
 });
 
 test("a mismatched answer is treated as unconfirmed", async () => {

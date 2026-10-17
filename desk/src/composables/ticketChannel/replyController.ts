@@ -154,7 +154,9 @@ export class ReplyController {
         file: pending.file ?? null,
         template: pending.template ?? null,
         language: pending.language ?? null,
-        parameters: Array.isArray(pending.parameters) ? pending.parameters : null,
+        parameters: Array.isArray(pending.parameters)
+          ? pending.parameters
+          : null,
       };
       // A request that was in flight when the page went away is unanswered.
       // Nothing is sent here: observe() or the agent's retry settles it.
@@ -368,8 +370,11 @@ export class ReplyController {
       return this.unconfirmed(requestId);
     }
     if (result.state === "Conflict") {
-      this.pending = null;
-      this.phase = "idle";
+      // The server already owns this key for a different immutable intent.
+      // Keep the unresolved request and UUID until the agent checks status and
+      // explicitly discards it; silently creating a new UUID could duplicate a
+      // send whose response was lost.
+      this.phase = "unconfirmed";
       this.notice = { kind: "conflict" };
       this.persist();
       this.changed();

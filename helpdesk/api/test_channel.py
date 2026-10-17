@@ -37,7 +37,12 @@ def get_ticket_channel(ticket):
         "account": {"label": "Main"},
         "reply": {"enabled": True, "max_length": "4096"},
         "window": {"open": True, "seconds_left": 120},
-        "capabilities": {"text": True, "media": 1, "templates": 0},
+        "capabilities": {
+            "text": True,
+            "media": 1,
+            "templates": 0,
+            "media_limits": {"image": 5242880, "document": 999999999, "unknown": 1},
+        },
         "access_token": "must-not-leak",
         "outbound": [
             {
@@ -155,7 +160,17 @@ class TestTicketChannel(FrappeTestCase):
         self.assertEqual(descriptor["window"]["seconds_left"], 120)
         self.assertEqual(
             descriptor["capabilities"],
-            {"text": True, "media": True, "templates": False},
+            {
+                "text": True,
+                "media": True,
+                "templates": False,
+                "media_limits": {
+                    "image": 5242880,
+                    "audio": 0,
+                    "video": 0,
+                    "document": 104857600,
+                },
+            },
         )
         self.assertEqual(len(descriptor["outbound"]), 1)
         self.assertEqual(set(descriptor["outbound"][0]), set(channel._OUTBOUND_FIELDS))

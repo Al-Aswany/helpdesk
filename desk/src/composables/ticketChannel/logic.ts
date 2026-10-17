@@ -48,7 +48,12 @@ export interface ChannelDescriptor {
   account: { label: string };
   reply: { enabled: boolean; max_length: number | null };
   window: { open: boolean; reason: string | null; seconds_left: number };
-  capabilities: { text: boolean; media: boolean; templates: boolean };
+  capabilities: {
+    text: boolean;
+    media: boolean;
+    templates: boolean;
+    media_limits?: Record<"image" | "audio" | "video" | "document", number>;
+  };
   templates?: {
     name: string;
     language: string;
@@ -219,7 +224,14 @@ export function outboundView(row: OutboundRow): OutboundView {
         false
       );
     case "Read":
-      return view(row, "Read", "green", "The customer has read this message.", false, false);
+      return view(
+        row,
+        "Read",
+        "green",
+        "The customer has read this message.",
+        false,
+        false
+      );
     case "Blocked":
       return view(
         row,
