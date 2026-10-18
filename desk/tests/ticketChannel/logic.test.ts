@@ -7,6 +7,7 @@ import {
   htmlToPlainText,
   isTechnicalIdentity,
   outboundView,
+  attachmentChoiceError,
   reasonCopy,
   replyStorageKey,
   resolveReplyChannel,
@@ -485,5 +486,34 @@ test("draft storage keys are separated by user, channel and ticket", () => {
   assert.notEqual(
     replyStorageKey('a","b', "c", "d"),
     replyStorageKey("a", 'b","c', "d")
+  );
+});
+
+test("instagram accepts one jpeg or png inside the image limit", () => {
+  const accept = ["image/jpeg", "image/png"];
+  const limits = { image: 5 * 1024 * 1024 };
+  assert.equal(
+    attachmentChoiceError({ type: "image/png", size: 1024 }, accept, limits),
+    null
+  );
+  assert.equal(
+    attachmentChoiceError({ type: "image/jpeg", size: limits.image }, accept, limits),
+    null
+  );
+  assert.equal(
+    attachmentChoiceError({ type: "image/gif", size: 100 }, accept, limits),
+    "type"
+  );
+  assert.equal(
+    attachmentChoiceError({ type: "application/pdf", size: 100 }, accept, limits),
+    "type"
+  );
+  assert.equal(
+    attachmentChoiceError({ type: "", size: 100 }, accept, limits),
+    "type"
+  );
+  assert.equal(
+    attachmentChoiceError({ type: "image/png", size: limits.image + 1 }, accept, limits),
+    "size"
   );
 });

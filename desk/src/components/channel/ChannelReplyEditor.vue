@@ -374,6 +374,7 @@
 <script setup lang="ts">
 import {
   AttachmentComposer,
+  attachmentChoiceError,
   formatWindowLeft,
   reasonCopy,
   useTicketChannel,
@@ -589,20 +590,31 @@ function onFile(event: Event) {
   input.value = "";
   if (!file) return;
   uploadError.value = "";
-  const kind = file.type.startsWith("image/")
-    ? "image"
-    : file.type.startsWith("audio/")
-    ? "audio"
-    : file.type.startsWith("video/")
-    ? "video"
-    : "document";
-  const limit = mediaLimits.value[kind] || 0;
-  if (!limit || file.size > limit) {
-    uploadError.value = limit
-      ? __("This file is larger than the configured {0} MiB limit.", [
-          String(Math.floor(limit / 1024 / 1024)),
-        ])
-      : __("File uploads are not configured for this channel.");
+  const accept =
+    resolved.value.mode === "channel" && resolved.value.descriptor.capabilities.accept?.length
+      ? resolved.value.descriptor.capabilities.accept
+      : WHATSAPP_ACCEPT.split(",");
+  const choice = attachmentChoiceError(file, accept, mediaLimits.value);
+  if (choice === "type") {
+    uploadError.value = __("Only a supported file can be sent. This one was not added.");
+    return;
+  }
+  if (choice === "size") {
+    const kind = file.type.startsWith("image/")
+      ? "image"
+      : file.type.startsWith("audio/")
+      ? "audio"
+      : file.type.startsWith("video/")
+      ? "video"
+      : "document";
+    const limit = mediaLimits.value[kind] || 0;
+    uploadError.value = __("This file is larger than the configured {0} MiB limit.", [
+      String(Math.floor(limit / 1024 / 1024)),
+    ]);
+    return;
+  }
+  if (choice) {
+    uploadError.value = __("File uploads are not configured for this channel.");
     return;
   }
   rememberStaged(file);

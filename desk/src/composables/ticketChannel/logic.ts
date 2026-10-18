@@ -360,9 +360,22 @@ export function reasonCopy(
         detail: `${providerLabel} did not accept this message.`,
       };
     case "unsupported_media":
+    case "media_upload_failed":
       return {
         title: "This file cannot be sent",
         detail: `Only a small JPEG or PNG image can be sent on ${providerLabel}.`,
+      };
+    case "caption_window_closed":
+      return {
+        title: "The image was sent without the text",
+        detail: `The 24-hour window closed before the accompanying text could be sent. The image was not sent again.`,
+      };
+    case "caption_provider_rejected":
+    case "caption_processing_paused":
+    case "caption_outbound_disabled":
+      return {
+        title: "The accompanying text was not sent",
+        detail: `The image was kept. The text was not sent, and the image will not be sent again.`,
       };
     case "replies_unavailable":
       return {
@@ -382,6 +395,30 @@ export function reasonCopy(
         detail: "It was kept so you can try again.",
       };
   }
+}
+
+export type AttachmentChoice = "type" | "size" | "unconfigured";
+
+/** Why a picked file cannot be staged, or null when it can. */
+export function attachmentChoiceError(
+  file: { type: string; size: number },
+  accept: string[],
+  limits: Partial<Record<"image" | "audio" | "video" | "document", number>>
+): AttachmentChoice | null {
+  const type = (file.type || "").toLowerCase();
+  const allowed = accept.map((item) => item.toLowerCase());
+  if (!type || !allowed.includes(type)) return "type";
+  const kind = type.startsWith("image/")
+    ? "image"
+    : type.startsWith("audio/")
+      ? "audio"
+      : type.startsWith("video/")
+        ? "video"
+        : "document";
+  const limit = limits[kind] || 0;
+  if (!limit) return "unconfigured";
+  if (file.size > limit) return "size";
+  return null;
 }
 
 /** "5h 12m" style text for the time left in the reply window. */
