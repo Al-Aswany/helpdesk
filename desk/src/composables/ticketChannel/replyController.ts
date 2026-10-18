@@ -276,11 +276,11 @@ export class ReplyController {
     if (!row) return false;
     this.pending = null;
     this.phase = "idle";
-    if (row.state === "Blocked") {
+    if (row.state === "Blocked" || row.state === "Failed" || row.state === "Uncertain") {
       this.notice = {
         kind: "blocked",
         reason: row.reason ?? null,
-        message: row.body ?? null,
+        message: row.body ?? row.error_summary ?? null,
       };
     } else {
       if (this.draft === pending.message) this.draft = "";
@@ -390,7 +390,7 @@ export class ReplyController {
       this.changed();
       return { kind: "conflict" };
     }
-    if (result.state === "Blocked") {
+    if (result.state === "Blocked" || result.state === "Failed" || result.state === "Uncertain") {
       this.pending = null;
       this.phase = "idle";
       this.notice = {

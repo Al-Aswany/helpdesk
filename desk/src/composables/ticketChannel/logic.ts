@@ -322,7 +322,12 @@ export function reasonCopy(
     case "outbound_disabled":
       return {
         title: `${providerLabel} replies are turned off`,
-        detail: `Outbound ${providerLabel} replies are switched off. An administrator can enable them when this Page is ready.`,
+        detail: `Outbound ${providerLabel} replies are switched off. An administrator can enable them when this account is ready.`,
+      };
+    case "processing_paused":
+      return {
+        title: `${providerLabel} processing is paused`,
+        detail: `This ${providerLabel} account is paused, so a reply is not sent. Internal comments stay on the ticket.`,
       };
     case "account_not_enforced":
     case "no_connector":
@@ -342,6 +347,11 @@ export function reasonCopy(
         title: `You cannot reply on ${providerLabel}`,
         detail:
           "Only active support agents with access to this ticket can reply. You can still add internal comments.",
+      };
+    case "provider_uncertain":
+      return {
+        title: `${providerLabel} has not confirmed this reply`,
+        detail: `The reply was kept. It is not marked delivered or read, and it will not be sent again automatically.`,
       };
     case "provider_rejected":
     case "token_invalid":
