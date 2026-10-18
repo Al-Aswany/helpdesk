@@ -3,7 +3,7 @@
 </template>
 
 <script setup lang="ts">
-import { MessengerIcon, WhatsAppIcon } from "@/components/icons";
+import { InstagramIcon, MessengerIcon, WhatsAppIcon } from "@/components/icons";
 import { computed } from "vue";
 import LucideMessageSquare from "~icons/lucide/message-square";
 
@@ -13,6 +13,7 @@ const props = defineProps<{ name?: string | null }>();
 const icon = computed(() => {
   if (props.name === "whatsapp") return WhatsAppIcon;
   if (props.name === "messenger") return MessengerIcon;
+  if (props.name === "instagram") return InstagramIcon;
   return LucideMessageSquare;
 });
 

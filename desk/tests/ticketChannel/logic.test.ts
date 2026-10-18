@@ -168,6 +168,31 @@ test("a server descriptor decides the composer", () => {
   );
 });
 
+test("an Instagram ticket stays unavailable and is not offered as email", () => {
+  const mode = resolveReplyChannel({
+    descriptor: descriptor({
+      key: "instagram",
+      label: "Instagram",
+      icon: "instagram",
+      status: "unavailable",
+      reason: "replies_unavailable",
+      reply: { enabled: false, max_length: 1 },
+      capabilities: { text: false, media: false, templates: false },
+    }),
+    raisedBy: "ig-abc@ig.inchaa.invalid",
+    activities: "loaded",
+  });
+  assert.equal(mode.mode, "unavailable");
+  if (mode.mode === "unavailable") {
+    assert.equal(mode.reason, "replies_unavailable");
+  }
+  const copy = reasonCopy("replies_unavailable", "Instagram");
+  assert.match(copy.title, /Instagram/);
+  assert.match(copy.detail, /email/);
+  assert.match(copy.detail, /Messenger/);
+  assert.match(copy.detail, /WhatsApp/);
+});
+
 test("outbound states are shown as the backend reports them, never as delivered or read", () => {
   const states = [
     "Queued",

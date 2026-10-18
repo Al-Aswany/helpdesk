@@ -354,6 +354,11 @@ export function reasonCopy(
         title: "This file cannot be sent",
         detail: `Only a small JPEG or PNG image can be sent on ${providerLabel}.`,
       };
+    case "replies_unavailable":
+      return {
+        title: `${providerLabel} replies are not available`,
+        detail: `Messages already on this ticket can be read. Replies are not available in this phase, and this conversation is not sent by email, Messenger, or WhatsApp. Internal comments stay on the ticket.`,
+      };
     case "thread_missing":
     case "lookup_failed":
     case "no_provider":
