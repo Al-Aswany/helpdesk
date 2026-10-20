@@ -18,6 +18,11 @@ export const useTelephonyStore = defineStore("telephony", {
     isCallingEnabled: false,
     isTwilioEnabled: false,
     isExotelEnabled: false,
+    // ZIWO is an optional custom-app-owned integration (inchaa_custmization).
+    // Its enabled/usable state is fetched separately from that app's own API,
+    // never from the `telephony` app, so this native app's behavior is
+    // unaffected when the custom app or connector is absent/disabled.
+    isZiwoEnabled: false,
     defaultCallingMedium: "",
     callMethod: (params: MakeCallParams) => {},
     linkDoc: {
@@ -45,11 +50,25 @@ export const useTelephonyStore = defineStore("telephony", {
         this.isTwilioEnabled = Boolean(data.twilio_enabled);
         this.isExotelEnabled = Boolean(data.exotel_enabled);
         this.defaultCallingMedium = data.default_calling_medium;
-        this.isCallingEnabled = this.isTwilioEnabled || this.isExotelEnabled;
       } catch (error) {
         console.error("Failed to fetch call integration status:", error);
       } finally {
         this.isLoading = false;
+      }
+      await this.fetchZiwoStatus();
+      this.isCallingEnabled =
+        this.isTwilioEnabled || this.isExotelEnabled || this.isZiwoEnabled;
+    },
+    async fetchZiwoStatus() {
+      try {
+        const data = await call(
+          "inchaa_custmization.integrations.ziwo.api.get_config"
+        );
+        this.isZiwoEnabled = Boolean(data?.enabled && data?.can_use);
+      } catch (error) {
+        // The custom app providing ZIWO may not be installed/enabled; that is
+        // a normal, expected state, not an error for the native call UI.
+        this.isZiwoEnabled = false;
       }
     },
     setLinkDoc(params: SetLinkDocParams) {
