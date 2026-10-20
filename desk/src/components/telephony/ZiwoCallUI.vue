@@ -166,6 +166,16 @@ import { useDraggable, useWindowSize } from "@vueuse/core";
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import LucidePhone from "~icons/lucide/phone";
 import CountUpTimer from "./CountUpTimer.vue";
+import {
+  canStartOutboundCall,
+  chooseCallMethod,
+  classifyZiwoEvent,
+  createListenerRegistry,
+  inferDirection,
+  postWithRetry,
+  ZIWO_WINDOW_EVENTS,
+  type ZiwoCallsSdk,
+} from "@/composables/ziwoCall/logic";
 
 const props = defineProps({
   userEmail: {
@@ -216,11 +226,6 @@ const outboundInFlight = ref(false);
 const counterUp = ref(null);
 const lookupResult = reactive({ contacts: [], tickets: [], requiresSelection: false });
 const matchedContact = ref<any>(null);
-
-const RINGING_EVENTS = new Set(["ringing"]);
-const OUTBOUND_PROGRESS_EVENTS = new Set(["requesting", "trying", "early"]);
-const ACTIVE_EVENTS = new Set(["active", "answering"]);
-const HANGUP_EVENTS = new Set(["hangup", "destroy"]);
 
 const displayNumber = computed(() => currentCall.value?.customerNumber || dialNumber.value);
 const callStatusLabel = computed(() => {
@@ -341,26 +346,38 @@ async function makeOutgoingCall(number: string) {
     loginError.value = __("Log in to ZIWO before placing a call.");
     return;
   }
+
+  // Refuse a second outbound attempt while one is already ringing/active/in
+  // flight. Without this guard, a double click on "Call" (or the ticket
+  // contact button firing while the dialog's own button is mid-attempt)
+  // could place two real calls for one agent action.
+  if (!canStartOutboundCall({ outboundInFlight: outboundInFlight.value, callStatus: callStatus.value as any })) {
+    toast.error(__("A ZIWO call is already in progress."));
+    return;
+  }
+
   const sdk = ziwo();
-  const calls = sdk?.calls;
-  if (!calls) {
+  const calls: ZiwoCallsSdk | undefined = sdk?.calls;
+
+  // The method is chosen once, purely from what the SDK exposes, before any
+  // invocation. It is never re-decided after the fact: if the chosen method
+  // rejects or resolves to an uncertain/undefined outcome, the failure is
+  // reported as-is and no alternative method is attempted for this click —
+  // that would risk a second real call being placed against the provider.
+  const method = chooseCallMethod(calls);
+  if (!method) {
     sdkError.value = __("ZIWO calling is not available in this session.");
     return;
   }
+
   dialNumber.value = number;
   outboundInFlight.value = true;
   currentCall.value = null;
   try {
-    // ZIWO's CallsManager documents both clickToCall() and startCall() under
-    // calls.*; the exact required parameter shape for this tenant has not
-    // been confirmed against a live account, so the simpler, documented
-    // click-to-call helper is tried first.
-    if (typeof calls.clickToCall === "function") {
-      await calls.clickToCall(number);
-    } else if (typeof calls.startCall === "function") {
-      await calls.startCall({ number });
+    if (method === "clickToCall") {
+      await calls!.clickToCall!(number);
     } else {
-      throw new Error(__("No supported ZIWO call method is available."));
+      await calls!.startCall!({ number });
     }
   } catch (e: any) {
     outboundInFlight.value = false;
@@ -431,34 +448,45 @@ async function attachContact(contactName: string) {
   }
 }
 
+// Tracks the last few event keys whose backend POST failed even after
+// retrying, purely so the agent can see "some events were not recorded" in
+// this session. This is not a queue and nothing here is retried again later
+// — see postWithRetry's doc comment for why that gap is reported, not
+// silently patched over.
+const lostEventCount = ref(0);
+
 async function recordEvent(detail: any, inferredDirection: string) {
   const callId = detail?.callId || detail?.call_id || detail?.id;
   if (!callId) return; // never record an event we cannot key durably
   const eventType = String(detail?.type || detail?.eventType || "unknown");
-  try {
-    const result = await call("inchaa_custmization.integrations.ziwo.api.record_call_event", {
+
+  const result = await postWithRetry(() =>
+    call("inchaa_custmization.integrations.ziwo.api.record_call_event", {
       call_id: String(callId),
       event_type: eventType,
       direction: inferredDirection,
       customer_number: detail?.callerIdNumber || detail?.customerNumber || detail?.number || "",
       raw_payload: detail || {},
-    });
-    return result;
-  } catch (e) {
-    // Backend recording failures must not crash the in-browser call UI; the
-    // scheduled recovery job (recover_pending_enrichment) covers durability
-    // for events that made it into the Call Log but not into Call Event rows
-    // is out of scope here — this is strictly a best-effort client post.
-    return null;
+    })
+  );
+
+  if (!result.ok) {
+    // Backend recording failures must not crash the in-browser call UI, but
+    // they also must not be claimed as recorded. This event's audit trail
+    // has a gap; a later event for the same call (e.g. hangup) is posted
+    // independently and is unaffected.
+    lostEventCount.value += 1;
+    console.error(
+      `ZIWO: failed to record "${eventType}" for call ${callId} after ${result.attempts} attempt(s); this observation is not queued for retry.`
+    );
   }
 }
 
 function onZiwoCallEvent(e: Event) {
   const detail = (e as CustomEvent).detail || {};
-  const eventType = String(detail?.type || "").toLowerCase();
   const callId = detail?.callId || detail?.call_id || detail?.id;
-
-  const direction = outboundInFlight.value ? "Outbound" : "Inbound";
+  const category = classifyZiwoEvent(detail?.type);
+  const direction = inferDirection(outboundInFlight.value);
 
   if (!currentCall.value || currentCall.value.callId !== callId) {
     currentCall.value = {
@@ -468,17 +496,17 @@ function onZiwoCallEvent(e: Event) {
     };
   }
 
-  if (RINGING_EVENTS.has(eventType)) {
+  if (category === "ringing") {
     callStatus.value = "ringing";
     showPopup.value = true;
     if (currentCall.value.customerNumber) lookupCustomer(currentCall.value.customerNumber);
-  } else if (OUTBOUND_PROGRESS_EVENTS.has(eventType)) {
+  } else if (category === "outbound-progress") {
     callStatus.value = "ringing";
-  } else if (ACTIVE_EVENTS.has(eventType)) {
+  } else if (category === "active") {
     callStatus.value = "active";
     outboundInFlight.value = false;
     counterUp.value?.start?.();
-  } else if (HANGUP_EVENTS.has(eventType)) {
+  } else if (category === "hangup") {
     callStatus.value = "ended";
     outboundInFlight.value = false;
     counterUp.value?.stop?.();
@@ -487,38 +515,32 @@ function onZiwoCallEvent(e: Event) {
   recordEvent(detail, direction);
 }
 
-const ZIWO_WINDOW_EVENTS = [
-  "ziwo-call-ringing",
-  "ziwo-call-requesting",
-  "ziwo-call-trying",
-  "ziwo-call-early",
-  "ziwo-call-attach",
-  "ziwo-call-answering",
-  "ziwo-call-active",
-  "ziwo-call-recovering",
-  "ziwo-call-hangup",
-  "ziwo-call-destroy",
-];
-
-function installListeners() {
-  ZIWO_WINDOW_EVENTS.forEach((name) => window.addEventListener(name, onZiwoCallEvent));
-}
-
-function removeListeners() {
-  ZIWO_WINDOW_EVENTS.forEach((name) => window.removeEventListener(name, onZiwoCallEvent));
-}
+// Installed once in onMounted() and only removed in onBeforeUnmount(). This
+// component lives inside AppHeader -> DesktopLayout, a persistent ancestor
+// of the per-ticket <router-view>, so navigating between tickets does not
+// unmount it and therefore never tears down these listeners or the ZIWO
+// session; only leaving the Agent app shell entirely does. Closing the popup
+// (closePopup()) only hides it — it never removes listeners or logs out.
+const listeners = createListenerRegistry(window, ZIWO_WINDOW_EVENTS, onZiwoCallEvent);
 
 async function setup() {
   await fetchConfig();
 }
 
 onMounted(() => {
-  installListeners();
+  listeners.install();
 });
 
 onBeforeUnmount(() => {
-  removeListeners();
+  listeners.remove();
 });
 
-defineExpose({ setup, makeOutgoingCall, openPanel, config });
+defineExpose({
+  setup,
+  makeOutgoingCall,
+  openPanel,
+  config,
+  loggedIn,
+  lostEventCount,
+});
 </script>

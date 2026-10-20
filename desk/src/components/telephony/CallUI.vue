@@ -2,6 +2,24 @@
   <TwilioCallUI ref="twilio" />
   <ExotelCallUI ref="exotel" />
   <ZiwoCallUI ref="ziwo" :userEmail="props.userEmail" />
+  <!--
+    Explicit, always-visible way to open/log in to ZIWO without placing an
+    outbound call. Without this, the only way to reach ZIWO's login form was
+    to first type a number into "Make call", which is not an obvious login
+    entry point.
+  -->
+  <Tooltip
+    v-if="isZiwoEnabled"
+    :text="ziwo?.loggedIn ? __('ZIWO (logged in)') : __('Open ZIWO')"
+  >
+    <Button
+      variant="ghost"
+      size="sm"
+      icon="lucide-phone"
+      :class="ziwo?.loggedIn ? 'text-ink-green-3' : 'text-ink-gray-5'"
+      @click="ziwo?.openPanel()"
+    />
+  </Tooltip>
   <Dialog
     v-model:open="show"
     title="Make call"
@@ -40,7 +58,7 @@
   </Dialog>
 </template>
 <script setup lang="ts">
-import { FormControl, call, toast } from "frappe-ui";
+import { FormControl, Tooltip, call, toast } from "frappe-ui";
 import { computed, nextTick, ref, watch } from "vue";
 import TwilioCallUI from "./TwilioCallUI.vue";
 import ExotelCallUI from "./ExotelCallUI.vue";
