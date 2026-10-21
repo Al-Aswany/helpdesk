@@ -19,6 +19,8 @@ from helpdesk.test_utils import (
 AGENT = "helpdesk-channel-agent@example.com"
 OUTSIDER = "helpdesk-channel-outsider@example.com"
 THIS_MODULE = "helpdesk.api.test_channel"
+LABEL = "Fake Chat"
+ICON = "message_circle"
 
 # The module doubles as the provider: Helpdesk resolves it from the hook value only.
 CLAIMED: set[str] = set()
@@ -248,8 +250,24 @@ class TestTicketChannel(FrappeTestCase):
             ("fake", "unavailable", "lookup_failed"),
         )
         self.assertFalse(technical["reply"]["enabled"])
+        self.assertEqual(technical["label"], LABEL)
+        self.assertEqual(technical["icon"], ICON)
         self.assertIsNone(email)
         self.assertEqual(activities["channel"]["status"], "unavailable")
+
+    def test_persisted_channel_hint_fails_closed_with_its_own_presentation(self):
+        with patch_channel_providers(THIS_MODULE), patch.object(
+            channel,
+            "ticket_channel_presentation",
+            return_value={"key": "fake", "label": LABEL, "icon": ICON},
+        ):
+            descriptor = channel.get_ticket_channel(self.technical_ticket.name)
+        self.assertEqual(
+            (descriptor["key"], descriptor["label"], descriptor["icon"]),
+            ("fake", LABEL, ICON),
+        )
+        self.assertEqual(descriptor["reason"], "lookup_failed")
+        self.assertFalse(descriptor["reply"]["enabled"])
 
     def test_a_provider_without_the_required_functions_is_ignored(self):
         with patch.object(
@@ -262,6 +280,7 @@ class TestTicketChannel(FrappeTestCase):
 
     def test_reply_is_dispatched_by_key_with_only_ticket_message_and_request_id(self):
         RESULT["state"] = "Blocked"
+        CLAIMED.add(self.ticket.name)
         with patch_channel_providers(THIS_MODULE):
             result = channel.send_channel_reply(
                 self.ticket.name,
@@ -291,6 +310,20 @@ class TestTicketChannel(FrappeTestCase):
             with self.assertRaises(TypeError):
                 channel.send_channel_reply(
                     self.ticket.name, "fake", "Hi", "id", to="15550001"
+                )
+        self.assertEqual(SENT, [])
+
+    def test_reply_cannot_be_routed_through_a_different_registered_channel(self):
+        CLAIMED.add(self.ticket.name)
+        with patch.object(
+            channel,
+            "registered_providers",
+            return_value={"fake": THIS_MODULE, "other": THIS_MODULE},
+        ):
+            with self.assertRaises(frappe.ValidationError):
+                channel.send_channel_reply(
+                    self.ticket.name, "other", "Wrong route",
+                    "11111111-1111-4111-8111-111111111111",
                 )
         self.assertEqual(SENT, [])
 

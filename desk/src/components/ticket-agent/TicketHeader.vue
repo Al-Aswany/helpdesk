@@ -1,7 +1,13 @@
 <template>
   <LayoutHeader>
     <template #left-header>
-      <div class="flex flex-col truncate">
+      <div class="flex min-w-0 items-center gap-1.5">
+        <ChannelIcon
+          v-if="channel.descriptor.value"
+          :name="channel.descriptor.value.icon"
+          :label="channel.descriptor.value.label"
+          class="size-4 text-ink-gray-6"
+        />
         <Breadcrumbs :items="breadcrumbs" class="breadcrumbs -ms-0.5">
           <template #prefix="{ item }">
             <Icon
@@ -78,12 +84,14 @@
 
 <script setup lang="ts">
 import { MultipleAvatar } from "@/components";
+import ChannelIcon from "@/components/channel/ChannelIcon.vue";
 import LayoutHeader from "@/components/LayoutHeader.vue";
 import TicketMergeModal from "@/components/ticket/TicketMergeModal.vue";
 import { showMergeModal } from "@/pages/ticket/modalStates";
 import { setupCustomizations } from "@/composables/formCustomisation";
 import { useNotifyTicketUpdate } from "@/composables/realtime";
 import { useShortcut } from "@/composables/shortcuts";
+import { useTicketChannel } from "@/composables/ticketChannel";
 import { useView } from "@/composables/useView";
 import { useAuthStore } from "@/stores/auth";
 import { globalStore } from "@/stores/globalStore";
@@ -136,6 +144,7 @@ const { findView } = useView("HD Ticket");
 const ticketStatusStore = useTicketStatusStore();
 
 const ticket = inject(TicketSymbol)!;
+const channel = useTicketChannel(() => ticket.value?.doc?.name);
 const customizations = inject(CustomizationSymbol)!;
 const activities = inject(ActivitiesSymbol)!;
 const showSubjectDialog = ref(false);

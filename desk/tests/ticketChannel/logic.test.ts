@@ -189,6 +189,9 @@ test("an Instagram ticket stays unavailable and is not offered as email", () => 
   }
   const copy = reasonCopy("replies_unavailable", "Instagram");
   assert.match(copy.title, /Instagram/);
+  const lookup = reasonCopy("lookup_failed", "Instagram");
+  assert.match(lookup.title, /Instagram/);
+  assert.doesNotMatch(lookup.title, /WhatsApp/);
   assert.match(copy.detail, /email/);
   assert.match(copy.detail, /Messenger/);
   assert.match(copy.detail, /WhatsApp/);
@@ -446,6 +449,10 @@ test("source label prefers the channel, then the field, then portal or mail", ()
   const base = { portalLabel: "Portal", emailLabel: "Mail" };
   assert.equal(sourceLabel({ ...base, descriptor: descriptor() }), "WhatsApp");
   assert.equal(
+    sourceLabel({ ...base, descriptor: null, channelValue: "Instagram" }),
+    "Instagram"
+  );
+  assert.equal(
     sourceLabel({ ...base, descriptor: null, channelValue: "WhatsApp" }),
     "WhatsApp"
   );
@@ -497,7 +504,11 @@ test("instagram accepts one jpeg or png inside the image limit", () => {
     null
   );
   assert.equal(
-    attachmentChoiceError({ type: "image/jpeg", size: limits.image }, accept, limits),
+    attachmentChoiceError(
+      { type: "image/jpeg", size: limits.image },
+      accept,
+      limits
+    ),
     null
   );
   assert.equal(
@@ -505,7 +516,11 @@ test("instagram accepts one jpeg or png inside the image limit", () => {
     "type"
   );
   assert.equal(
-    attachmentChoiceError({ type: "application/pdf", size: 100 }, accept, limits),
+    attachmentChoiceError(
+      { type: "application/pdf", size: 100 },
+      accept,
+      limits
+    ),
     "type"
   );
   assert.equal(
@@ -513,7 +528,11 @@ test("instagram accepts one jpeg or png inside the image limit", () => {
     "type"
   );
   assert.equal(
-    attachmentChoiceError({ type: "image/png", size: limits.image + 1 }, accept, limits),
+    attachmentChoiceError(
+      { type: "image/png", size: limits.image + 1 },
+      accept,
+      limits
+    ),
     "size"
   );
 });

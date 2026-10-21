@@ -29,7 +29,13 @@
         >
           #{{ ticket.doc.name }}
         </p>
-        <div class="flex items-center">
+        <div class="flex items-center gap-1">
+          <ChannelIcon
+            v-if="channel.descriptor.value"
+            :name="channel.descriptor.value.icon"
+            :label="channel.descriptor.value.label"
+            class="size-3.5"
+          />
           <span>{{ sourceText }}</span>
         </div>
       </div>
@@ -50,6 +56,7 @@
 </template>
 
 <script setup lang="ts">
+import ChannelIcon from "@/components/channel/ChannelIcon.vue";
 import { useShortcut } from "@/composables/shortcuts";
 import { sourceLabel, useTicketChannel } from "@/composables/ticketChannel";
 import { useTelephonyStore } from "@/stores/telephony";

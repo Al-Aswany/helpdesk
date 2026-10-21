@@ -1,5 +1,13 @@
 <template>
-  <component :is="icon" v-bind="$attrs" />
+  <span
+    v-bind="$attrs"
+    class="inline-flex shrink-0"
+    role="img"
+    :aria-label="accessibleLabel"
+    :title="accessibleLabel"
+  >
+    <component :is="icon" class="size-full" aria-hidden="true" />
+  </span>
 </template>
 
 <script setup lang="ts">
@@ -8,7 +16,15 @@ import { computed } from "vue";
 import LucideMessageSquare from "~icons/lucide/message-square";
 
 // `name` comes from the channel descriptor. Unknown names get a neutral icon.
-const props = defineProps<{ name?: string | null }>();
+const props = defineProps<{ name?: string | null; label?: string | null }>();
+const accessibleLabel = computed(
+  () =>
+    props.label ||
+    ({ whatsapp: "WhatsApp", messenger: "Messenger", instagram: "Instagram" }[
+      props.name || ""
+    ] ??
+      "Conversation")
+);
 
 const icon = computed(() => {
   if (props.name === "whatsapp") return WhatsAppIcon;

@@ -25,7 +25,9 @@ import frappe
 from frappe import _
 
 HOOK = "helpdesk_ticket_channel_providers"
+CHANNEL_FIELD_HOOK = "helpdesk_ticket_channel_field"
 KEY_PATTERN = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
+FIELD_PATTERN = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 STATUSES = ("ready", "unavailable")
 # ".invalid" is reserved (RFC 2606): an address under it can never receive mail.
 TECHNICAL_SUFFIX = ".invalid"
@@ -87,6 +89,23 @@ def registered_providers() -> dict[str, str]:
     return providers
 
 
+def ticket_channel_field() -> str | None:
+    """Optional HD Ticket field whose value names the owning channel.
+
+    The integration app owns the field and its migration. Helpdesk only uses
+    the configured field as a fail-closed routing hint and as lightweight list
+    presentation metadata.
+    """
+    declared = frappe.get_hooks(CHANNEL_FIELD_HOOK) or []
+    if isinstance(declared, str):
+        value = declared
+    elif isinstance(declared, list | tuple):
+        value = declared[-1] if declared else None
+    else:
+        value = None
+    return value if isinstance(value, str) and FIELD_PATTERN.fullmatch(value) else None
+
+
 def load_provider(key: str):
     """The provider module for a registered key, or ``None``."""
     path = registered_providers().get(key or "")
@@ -107,6 +126,51 @@ def load_provider(key: str):
     return module
 
 
+def provider_presentation(key: str, provider=None) -> dict:
+    """Safe label/icon metadata for a registered provider."""
+    provider = provider or load_provider(key)
+    label = _text(getattr(provider, "LABEL", None)) or key.replace("_", " ").title()
+    icon = _slug(getattr(provider, "ICON", None)) or key
+    return {"key": key, "label": label, "icon": icon}
+
+
+def channel_presentation(value: str | None) -> dict | None:
+    """Resolve a persisted channel value to one registered provider."""
+    text = _text(value).strip()
+    if not text:
+        return None
+    providers = registered_providers()
+    normalized = re.sub(r"[^a-z0-9]+", "_", text.lower()).strip("_")
+    if normalized in providers:
+        return provider_presentation(normalized)
+    for key in sorted(providers):
+        presentation = provider_presentation(key)
+        if presentation["label"].casefold() == text.casefold():
+            return presentation
+    return None
+
+
+def ticket_channel_presentation(ticket: str) -> dict | None:
+    """Persisted channel presentation for a ticket, without recipient data."""
+    fieldname = ticket_channel_field()
+    if not fieldname or not frappe.get_meta("HD Ticket").has_field(fieldname):
+        return None
+    return channel_presentation(frappe.db.get_value("HD Ticket", ticket, fieldname))
+
+
+def unavailable_descriptor(key: str, reason: str, provider=None) -> dict:
+    presentation = provider_presentation(key, provider)
+    return clean_descriptor(
+        key,
+        {
+            "label": presentation["label"],
+            "icon": presentation["icon"],
+            "status": "unavailable",
+            "reason": reason,
+        },
+    )
+
+
 def get_ticket_channel(ticket: str) -> dict | None:
     """The descriptor of the channel that owns ``ticket``, or ``None`` for email.
 
@@ -115,24 +179,40 @@ def get_ticket_channel(ticket: str) -> dict | None:
     that no provider could describe gets an explicit unavailable descriptor, so
     the client never offers an email reply to an address that cannot receive it.
     """
+    hint = ticket_channel_presentation(ticket)
+    failed = []
     for key in sorted(registered_providers()):
+        provider = None
         try:
             provider = load_provider(key)
-            raw = provider.get_ticket_channel(ticket) if provider else None
+            if not provider:
+                failed.append((key, None))
+                continue
+            raw = provider.get_ticket_channel(ticket)
             if raw is None:
                 continue
+            if hint and key != hint["key"]:
+                frappe.log_error(
+                    title="Ticket channel provider claimed a different route",
+                    message=f"provider={key} ticket={ticket} expected={hint['key']}",
+                )
+                continue
+            raw = {**provider_presentation(key, provider), **raw}
             return clean_descriptor(key, raw)
         except Exception:
+            failed.append((key, provider))
             frappe.log_error(
                 title="Ticket channel provider failed",
                 message=f"provider={key} ticket={ticket}\n{frappe.get_traceback()}",
             )
-            if is_technical_identity(
-                frappe.db.get_value("HD Ticket", ticket, "raised_by")
-            ):
-                return clean_descriptor(
-                    key, {"status": "unavailable", "reason": "lookup_failed"}
-                )
+    if hint:
+        provider = next((module for key, module in failed if key == hint["key"]), None)
+        return unavailable_descriptor(hint["key"], "lookup_failed", provider)
+    if failed and is_technical_identity(
+        frappe.db.get_value("HD Ticket", ticket, "raised_by")
+    ):
+        key, provider = failed[0]
+        return unavailable_descriptor(key, "lookup_failed", provider)
     return None
 
 
@@ -296,7 +376,20 @@ def send_channel_reply(
     behaviour. The provider checks the file, the template and the recipient.
     """
     frappe.has_permission("HD Ticket", "write", ticket, throw=True)
-    provider = load_provider(channel)
+    if not frappe.db.exists("HD Ticket", ticket):
+        frappe.throw(_("Ticket not found"), frappe.DoesNotExistError)
+    descriptor = get_ticket_channel(ticket)
+    if not descriptor:
+        frappe.throw(
+            _("This ticket does not have a conversation reply channel."),
+            frappe.ValidationError,
+        )
+    if descriptor["key"] != channel:
+        frappe.throw(
+            _("This reply channel does not match the ticket conversation."),
+            frappe.ValidationError,
+        )
+    provider = load_provider(descriptor["key"])
     if not provider:
         frappe.throw(
             _("This conversation channel is not available."), frappe.ValidationError

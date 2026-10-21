@@ -6,6 +6,7 @@ from frappe.model.document import get_controller
 from frappe.utils.caching import redis_cache
 from pypika import Criterion
 
+from helpdesk.api.channel import channel_presentation, ticket_channel_field
 from helpdesk.api.dashboard import COUNT_NAME
 from helpdesk.utils import (
     call_log_default_columns,
@@ -113,11 +114,19 @@ def get_list_data(
         rows.append(group_by_field)
 
     rows.append("name") if "name" not in rows else rows
+    channel_fieldname = None
     if doctype == "HD Ticket":
         rows.append("_seen") if "_seen" not in rows else rows
         # the SLA columns can't tell fulfilled from due without these, and no saved view lists them
         for field in SLA_ROW_FIELDS:
             rows.append(field) if field not in rows else rows
+        channel_fieldname = ticket_channel_field()
+        if (
+            channel_fieldname
+            and frappe.get_meta(doctype).has_field(channel_fieldname)
+            and channel_fieldname not in rows
+        ):
+            rows.append(channel_fieldname)
     data = (
         frappe.get_list(
             doctype,
@@ -131,6 +140,9 @@ def get_list_data(
 
     if doctype == "TP Call Log":
         data = parse_call_logs(data)
+    elif doctype == "HD Ticket" and channel_fieldname:
+        for row in data:
+            row["_ticket_channel"] = channel_presentation(row.get(channel_fieldname))
 
     fields = frappe.get_meta(doctype).fields
     fields = [field for field in fields if field.fieldtype not in no_value_fields]

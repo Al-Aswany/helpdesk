@@ -116,7 +116,13 @@
                   <div class="w-[126px] text-sm text-ink-gray-5">
                     {{ __("Source") }}
                   </div>
-                  <div>
+                  <div class="flex items-center gap-1">
+                    <ChannelIcon
+                      v-if="channel.descriptor.value"
+                      :name="channel.descriptor.value.icon"
+                      :label="channel.descriptor.value.label"
+                      class="size-3.5"
+                    />
                     {{
                       sourceLabel({
                         descriptor: channel.descriptor.value,
@@ -258,6 +264,7 @@ import {
   sourceLabel,
   useChannelPolling,
 } from "@/composables/ticketChannel";
+import ChannelIcon from "@/components/channel/ChannelIcon.vue";
 import LucideMessageSquare from "~icons/lucide/message-square";
 
 import CustomActions from "@/components/CustomActions.vue";

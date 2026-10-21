@@ -438,10 +438,13 @@ const canSubmit = computed(
 );
 
 const providerLabel = computed(() => {
-  if (resolved.value.mode === "channel" || resolved.value.mode === "unavailable") {
-    return resolved.value.descriptor?.label || "WhatsApp";
+  if (
+    resolved.value.mode === "channel" ||
+    resolved.value.mode === "unavailable"
+  ) {
+    return resolved.value.descriptor?.label || "Conversation";
   }
-  return "WhatsApp";
+  return "Conversation";
 });
 const WHATSAPP_ACCEPT =
   "image/jpeg,image/png,audio/aac,audio/amr,audio/mpeg,audio/mp4,audio/ogg,video/mp4,video/3gpp,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation";
@@ -456,7 +459,8 @@ const unavailableCopy = computed(() =>
     : reasonCopy(null, providerLabel.value)
 );
 const holdCopy = computed(() => {
-  if (resolved.value.mode !== "channel") return reasonCopy(null, providerLabel.value);
+  if (resolved.value.mode !== "channel")
+    return reasonCopy(null, providerLabel.value);
   if (
     resolved.value.holdReason === "template_required" &&
     !(resolved.value.descriptor.templates || []).length
@@ -591,12 +595,15 @@ function onFile(event: Event) {
   if (!file) return;
   uploadError.value = "";
   const accept =
-    resolved.value.mode === "channel" && resolved.value.descriptor.capabilities.accept?.length
+    resolved.value.mode === "channel" &&
+    resolved.value.descriptor.capabilities.accept?.length
       ? resolved.value.descriptor.capabilities.accept
       : WHATSAPP_ACCEPT.split(",");
   const choice = attachmentChoiceError(file, accept, mediaLimits.value);
   if (choice === "type") {
-    uploadError.value = __("Only a supported file can be sent. This one was not added.");
+    uploadError.value = __(
+      "Only a supported file can be sent. This one was not added."
+    );
     return;
   }
   if (choice === "size") {
@@ -608,9 +615,10 @@ function onFile(event: Event) {
       ? "video"
       : "document";
     const limit = mediaLimits.value[kind] || 0;
-    uploadError.value = __("This file is larger than the configured {0} MiB limit.", [
-      String(Math.floor(limit / 1024 / 1024)),
-    ]);
+    uploadError.value = __(
+      "This file is larger than the configured {0} MiB limit.",
+      [String(Math.floor(limit / 1024 / 1024))]
+    );
     return;
   }
   if (choice) {
@@ -678,7 +686,8 @@ const blockedCopy = computed(() => {
   const notice = state.value.notice;
   if (notice?.kind !== "blocked") return null;
   const copy = reasonCopy(notice.reason, providerLabel.value);
-  const known = notice.reason && copy.title !== reasonCopy(null, providerLabel.value).title;
+  const known =
+    notice.reason && copy.title !== reasonCopy(null, providerLabel.value).title;
   return known || !notice.message
     ? copy
     : { title: copy.title, detail: notice.message };

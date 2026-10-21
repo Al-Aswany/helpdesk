@@ -71,6 +71,7 @@
 
 <script setup lang="ts">
 import { LayoutHeader, ListViewBuilder } from "@/components";
+import ChannelIcon from "@/components/channel/ChannelIcon.vue";
 import { TicketIcon } from "@/components/icons";
 import IndicatorIcon from "@/components/icons/IndicatorIcon.vue";
 import TicketPriority from "@/components/TicketPriority.vue";
@@ -175,12 +176,29 @@ const options = computed(() => ({
       custom: ({ row, item }) => {
         const seenBy = row._seen ? JSON.parse(row._seen) : [];
         const isSeen = seenBy.includes(userId || "");
+        const channel = row._ticket_channel as
+          | { key: string; label: string; icon: string | null }
+          | null
+          | undefined;
         return h(
           "span",
-          {
-            class: ["truncate flex-1", !isSeen && "font-semibold"],
-          },
-          item
+          { class: "flex min-w-0 flex-1 items-center gap-1.5" },
+          [
+            channel
+              ? h(ChannelIcon, {
+                  name: channel.icon,
+                  label: channel.label,
+                  class: "size-4 text-ink-gray-6",
+                })
+              : null,
+            h(
+              "span",
+              {
+                class: ["truncate flex-1", !isSeen && "font-semibold"],
+              },
+              item
+            ),
+          ]
         );
       },
     },
