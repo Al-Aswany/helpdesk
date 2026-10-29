@@ -1,3 +1,4 @@
+import fs from "fs";
 import frameworkUI from "@framework/ui/vite";
 import vue from "@vitejs/plugin-vue";
 import vueJsx from "@vitejs/plugin-vue-jsx";
@@ -90,6 +91,29 @@ export default defineConfig(async ({ mode }) => {
           ],
         },
       }),
+      // frappe-ui copies index.html from writeBundle, which runs before Vite
+      // writes the built file. Copy again after the bundle is on disk.
+      {
+        name: "helpdesk-copy-index-html",
+        apply: "build",
+        closeBundle() {
+          const source = path.resolve(
+            __dirname,
+            "../helpdesk/public/desk/index.html"
+          );
+          const dest = path.resolve(
+            __dirname,
+            "../helpdesk/www/helpdesk/index.html"
+          );
+          fs.mkdirSync(path.dirname(dest), { recursive: true });
+          // copyFileSync uses copy_file_range, which returns EPERM on this
+          // host once the built file is in place. Replace the destination
+          // with a normal write instead.
+          const html = fs.readFileSync(source);
+          fs.rmSync(dest, { force: true });
+          fs.writeFileSync(dest, html);
+        },
+      },
     ],
     server: {
       allowedHosts: true,

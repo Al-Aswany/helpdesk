@@ -37,6 +37,7 @@ export { default as ThumbsUpFilledIcon } from "./ThumbsUpFilledIcon.vue";
 export { default as ThumbsUpIcon } from "./ThumbsUpIcon.vue";
 export { default as TicketIcon } from "./TicketIcon.vue";
 export { default as UnpinIcon } from "./UnpinIcon.vue";
+export { default as InchaaIcon } from "./InchaaIcon.vue";
 export { default as InstagramIcon } from "./InstagramIcon.vue";
 export { default as MessengerIcon } from "./MessengerIcon.vue";
 export { default as WhatsAppIcon } from "./WhatsAppIcon.vue";
