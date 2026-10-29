@@ -2,7 +2,7 @@
   <div class="flex w-[382px] flex-col border-s gap-4">
     <!-- Ticket ID -->
     <div class="flex items-center justify-between border-b px-5 py-3">
-      <span class="cursor-copy text-lg-semibold">Ticket details</span>
+      <span class="cursor-copy text-md-semibold">Ticket details</span>
     </div>
     <!-- user info and sla info -->
     <div class="flex flex-col gap-4 pt-0 px-5 py-3 border-b">
@@ -15,7 +15,7 @@
         />
         <div class="flex items-center justify-between">
           <Tooltip :text="ticket.data.contact.name">
-            <div class="w-[242px] truncate text-3xl-medium">
+            <div class="w-[242px] truncate text-2xl-medium">
               {{ ticket.data.contact.name }}
             </div>
           </Tooltip>
@@ -41,7 +41,9 @@
         class="flex items-center text-base leading-5"
         v-for="field in ticketBasicInfo"
       >
-        <span class="w-[126px] text-sm text-ink-gray-5">{{ field.label }}</span>
+        <span class="w-[126px] text-sm text-ink-gray-5">{{
+          __(field.label)
+        }}</span>
         <span
           class="text-base text-ink-gray-8 flex-1"
           :class="!field.value && 'text-ink-gray-4'"
@@ -68,7 +70,7 @@
           <!-- SLA explanation icon -->
           <Tooltip
             v-if="
-              dayjs(data.value).diff(dayjs(), 'day', true) > 4 &&
+              dayjsLocal(data.value).diff(dayjsLocal(), 'day', true) > 4 &&
               data.title === 'Resolution'
             "
             :text="
@@ -96,7 +98,9 @@
         v-for="field in ticketAdditionalInfo"
         :key="field.fieldname"
       >
-        <span class="w-[126px] text-sm text-ink-gray-5">{{ field.label }}</span>
+        <span class="w-[126px] text-sm text-ink-gray-5">{{
+          __(field.label)
+        }}</span>
         <span
           class="text-base text-ink-gray-8 flex-1"
           :class="!field.value && 'text-ink-gray-4'"
@@ -129,7 +133,7 @@ import {
 import { ITicket } from "@/pages/ticket/symbols";
 import { Field } from "@/types";
 import { dateFormat, dateTooltipFormat } from "@/utils";
-import { Avatar, dayjs, Tooltip } from "frappe-ui";
+import { Avatar, dayjs, dayjsLocal, Tooltip } from "frappe-ui";
 import { computed, inject } from "vue";
 
 const emit = defineEmits(["open"]);

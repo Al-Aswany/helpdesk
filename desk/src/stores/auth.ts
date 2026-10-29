@@ -50,6 +50,9 @@ export const useAuthStore = defineStore("auth", () => {
   const availabilityChangedOn: ComputedRef<string> = computed(
     () => user__.value.availability_changed_on || ""
   );
+  const availabilityChangedBy: ComputedRef<string> = computed(
+    () => user__.value.availability_changed_by || ""
+  );
   const timezone: ComputedRef<string> = computed(() => user__.value.time_zone);
   const language: ComputedRef<string> = computed(() => user__.value.language);
   const userTeams: ComputedRef<string[]> = computed(
@@ -96,6 +99,7 @@ export const useAuthStore = defineStore("auth", () => {
     username,
     availability,
     availabilityChangedOn,
+    availabilityChangedBy,
     timezone,
     language,
     userTeams,

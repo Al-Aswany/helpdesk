@@ -5,6 +5,7 @@ from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
 from frappe.permissions import add_permission, update_permission_property
 
 from helpdesk.consts import DEFAULT_ARTICLE_CATEGORY, DEFAULT_SLA
+from helpdesk.setup.comments import setup_comments_and_notifications
 from helpdesk.setup.default_views import add_default_views
 
 from .default_template import create_default_template
@@ -24,6 +25,7 @@ def after_install():
     add_default_agent_groups()
     update_agent_role_permissions()
     add_agent_manager_permissions()
+    setup_comments_and_notifications()
     setup_customer_role()
     add_default_assignment_rule()
     create_default_template()
@@ -448,8 +450,10 @@ def add_default_agent_status():
     for status in statuses:
         if not frappe.db.exists("HD Agent Status", status["agent_status"]):
             frappe.get_doc(
-                {"doctype": "HD Agent Status", "enable": 1, **status}
+                {"doctype": "HD Agent Status", "enabled": 1, **status}
             ).insert()
+
+    frappe.db.set_single_value("HD Settings", "default_agent_status", "Active")
 
 
 def add_fts_index():

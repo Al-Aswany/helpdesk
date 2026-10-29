@@ -1,37 +1,37 @@
 import {
-  RichTextKit,
-  Paragraph,
-  HeadingGroup,
-  Separator,
+  CleanStyles,
+  ComponentUtils,
+  DismissSuggestionsOnOutsideClick,
+  HandleExcelPaste,
+} from "@/tiptap-extensions";
+import {
+  AlignCenter,
+  AlignLeft,
+  AlignRight,
+  Blockquote,
   Bold,
-  Italic,
-  Strike,
+  BulletList,
   FontColor,
   FontHighlight,
-  AlignLeft,
-  AlignCenter,
-  AlignRight,
-  BulletList,
-  OrderedList,
-  Blockquote,
-  InlineCode,
-  InsertLink,
-  InsertImage,
-  InsertVideo,
-  InsertTable,
+  HeadingGroup,
   HorizontalRule,
+  InlineCode,
+  InsertImage,
+  InsertLink,
+  InsertTable,
+  InsertVideo,
+  Italic,
+  OrderedList,
+  Paragraph,
+  RichTextKit,
+  Separator,
+  Strike,
   commentToolbar,
-  type MenuItem,
   type CommandMenuItem,
+  type MentionSuggestionItem,
+  type MenuItem,
 } from "frappe-ui/editor";
 import type { MaybeRefOrGetter } from "vue";
-import { CleanStyles, ComponentUtils, HandleExcelPaste } from "@/tiptap-extensions";
-
-/** A mentionable agent as the new editor expects it: `{ id, label }`. */
-export interface MentionItem {
-  id: string;
-  label: string;
-}
 
 /**
  * Build the extension list for a Helpdesk rich-text editor.
@@ -39,12 +39,16 @@ export interface MentionItem {
  * Mentions are passed as a reactive getter so the `@` list stays in sync as
  * agents load (the v0 `:mentions` snapshot prop is what broke suggestions).
  */
-export function buildEditorExtensions(options: {
-  mentions?: MaybeRefOrGetter<MentionItem[]>;
-  extra?: unknown[];
-} = {}) {
+export function buildEditorExtensions(
+  options: {
+    mentions?: MaybeRefOrGetter<MentionSuggestionItem[]>;
+    extra?: unknown[];
+  } = {}
+) {
   const kit = RichTextKit.configure({
     heading: { levels: [2, 3, 4, 5, 6] },
+    // rc.1 ships the table-of-contents node off; helpdesk editors had it.
+    toc: {},
     ...(options.mentions ? { mention: { items: options.mentions } } : {}),
   });
   return [
@@ -52,6 +56,7 @@ export function buildEditorExtensions(options: {
     ComponentUtils,
     HandleExcelPaste,
     CleanStyles,
+    DismissSuggestionsOnOutsideClick,
     ...(options.extra ?? []),
   ];
 }
@@ -62,6 +67,14 @@ export const ClearFormatting: CommandMenuItem = {
   icon: "lucide-brush-cleaning",
   action: (editor) =>
     editor.chain().focus().unsetAllMarks().clearNodes().cleanStyles().run(),
+};
+
+/** Code block button; frappe-ui ships the node but no toolbar item for it. */
+export const InsertCodeBlock: CommandMenuItem = {
+  label: "Code block",
+  icon: "lucide-square-code",
+  isActive: (editor) => editor.isActive("codeBlock"),
+  action: (editor) => editor.chain().focus().toggleCodeBlock().run(),
 };
 
 /** Full toolbar mirroring the v0 `textEditorMenuButtons`. */
@@ -82,6 +95,7 @@ export const fullToolbar: MenuItem[] = [
   OrderedList,
   Blockquote,
   InlineCode,
+  InsertCodeBlock,
   Separator,
   InsertLink,
   InsertImage,

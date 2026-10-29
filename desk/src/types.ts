@@ -289,17 +289,6 @@ export type File = {
   attached_to_name?: string;
 };
 
-export type Notification = {
-  creation: string;
-  name: string;
-  notification_type: string;
-  read: boolean;
-  reference_comment: string;
-  reference_ticket: string;
-  user_from: UserInfo;
-  user_to: UserInfo;
-};
-
 export type UserInfo = {
   email: string;
   image: string;
@@ -314,18 +303,8 @@ export interface RenderField {
   description?: string;
 }
 
-export type EmailServiceName =
-  | "GMail"
-  | "Outlook"
-  | "Sendgrid"
-  | "SparkPost"
-  | "Yahoo"
-  | "Yandex"
-  | "Frappe Mail"
-  | "Custom";
-
 export interface EmailService {
-  name: EmailServiceName;
+  name: string;
   icon: string;
   info: string;
   link: string;
@@ -335,16 +314,6 @@ export interface EmailService {
 export type EmailStep = "email-list" | "email-add" | "email-edit";
 
 export interface EmailAccount {
-  smtp_server: string;
-  incoming_port: string;
-  smtp_port: string;
-  use_ssl: boolean;
-  use_starttls: boolean;
-  use_tls: boolean;
-  use_ssl_for_outgoing: boolean;
-  validate_ssl_certificate: boolean;
-  email_server: string;
-  domain: string;
   email_account_name: string;
   email_id: string;
   service: string;
@@ -356,7 +325,6 @@ export interface EmailAccount {
   enable_incoming?: boolean;
   default_outgoing?: boolean;
   default_incoming?: boolean;
-  validate_ssl_certificate_for_outgoing: boolean;
 }
 
 export type TicketTab =
@@ -369,9 +337,9 @@ export type TicketTab =
   | "analytics";
 
 export interface TabObject {
-  name: TicketTab;
+  value: TicketTab;
   label: string;
-  icon: Component;
+  iconLeft: Component;
   condition?: () => boolean;
 }
 
@@ -669,7 +637,6 @@ export interface TicketActivities {
   channel?: import("@/composables/ticketChannel/logic").ChannelDescriptor;
 }
 
-
 export interface HDSettings {
   brandName: string;
   brandLogo: string;
@@ -784,10 +751,6 @@ export const TicketContactSymbol: InjectionKey<
 export const RecentSimilarTicketsSymbol: InjectionKey<
   ComputedRef<Resource<RecentSimilarTicket>>
 > = Symbol("recentSimilarTickets");
-
-export const ActivitiesSymbol: InjectionKey<
-  ComputedRef<Resource<TicketActivities>>
-> = Symbol("activities");
 
 export const AssignmentRuleListResourceSymbol: InjectionKey<
   Resource<AssignmentRule[]>
