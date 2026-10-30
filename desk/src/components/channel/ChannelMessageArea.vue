@@ -76,7 +76,11 @@
       <Button
         size="sm"
         variant="subtle"
-        :label="__('Edit and send again')"
+        :label="
+          view?.state === 'Uncertain'
+            ? __('Retry anyway')
+            : __('Edit and send again')
+        "
         data-testid="channel-message-reuse"
         @click="reuse"
       />
@@ -169,11 +173,14 @@ const detailClass = computed(() => {
 });
 
 // A blocked or failed message can be edited and sent as a new reply. An
-// uncertain one cannot: it may already have reached the customer.
+// uncertain one can, but only after the warning on the row: it may already
+// have reached the customer.
 const canReuse = computed(
   () =>
     props.reusable &&
-    ["Blocked", "Failed"].includes(view.value?.state ?? "") &&
+    ["Blocked", "Failed", "Uncertain", "Conflict"].includes(
+      view.value?.state ?? ""
+    ) &&
     Boolean(props.activity.content)
 );
 

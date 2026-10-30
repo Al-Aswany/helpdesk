@@ -16,7 +16,10 @@ export type OutboundState =
   | "Read"
   | "Blocked"
   | "Failed"
-  | "Uncertain";
+  | "Uncertain"
+  | "Confirmed"
+  | "Conflict"
+  | "Superseded";
 
 export interface OutboundRow {
   name: string;
@@ -259,7 +262,34 @@ export function outboundView(
         row,
         "Uncertain",
         "orange",
-        `We could not confirm whether ${providerLabel} received this. Check with the customer before sending it again.`,
+        `We could not confirm whether ${providerLabel} received this. Check with the customer before sending it again. Sending it again may create a duplicate.`,
+        false,
+        true
+      );
+    case "Confirmed":
+      return view(
+        row,
+        "Confirmed",
+        "green",
+        `${providerLabel} confirmed this reply.`,
+        false,
+        false
+      );
+    case "Conflict":
+      return view(
+        row,
+        "Conflict",
+        "orange",
+        `${providerLabel} rejected this update because a newer or final status already exists.`,
+        false,
+        true
+      );
+    case "Superseded":
+      return view(
+        row,
+        "Superseded",
+        "gray",
+        "A newer status update replaced this one before it was sent.",
         false,
         false
       );

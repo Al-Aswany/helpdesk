@@ -97,6 +97,8 @@
           </Section>
         </div>
 
+        <InchaaAdminTaskPanel />
+
         <!-- Recent / Similar Tickets -->
         <template v-if="showRecentSimilarTickets">
           <div v-for="section in sections" :key="section.label">
@@ -171,6 +173,7 @@ import Section from "../Section.vue";
 import Tags from "../tag/Tags.vue";
 import TicketField from "../TicketField.vue";
 import AssignTo from "./AssignTo.vue";
+import InchaaAdminTaskPanel from "./InchaaAdminTaskPanel.vue";
 import TicketContact from "./TicketContact.vue";
 import TicketFeedback from "./TicketFeedback.vue";
 import TicketSLA from "./TicketSLA.vue";

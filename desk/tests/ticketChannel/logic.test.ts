@@ -253,6 +253,17 @@ test("outbound states are shown as the backend reports them, never as delivered 
   );
   assert.equal(hasPendingRows([outbound({ state: "Failed" })]), false);
   assert.equal(hasPendingRows(null), false);
+  const confirmed = outboundView(outbound({ state: "Confirmed" }));
+  assert.equal(confirmed.state, "Confirmed");
+  assert.equal(confirmed.tone, "green");
+  const conflict = outboundView(outbound({ state: "Conflict" }));
+  assert.equal(conflict.state, "Conflict");
+  assert.equal(conflict.kept, true);
+  assert.match(conflict.detail, /final status|newer/i);
+  assert.equal(
+    outboundView(outbound({ state: "Uncertain" })).kept,
+    true
+  );
 });
 
 test("reason copy is actionable and has no internal wording", () => {
