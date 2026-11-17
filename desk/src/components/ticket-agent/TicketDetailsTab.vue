@@ -98,6 +98,8 @@
         </div>
 
         <InchaaAdminTaskPanel />
+        <InchaaCompanyPanel />
+        <ZiwoTicketCalls />
 
         <!-- Recent / Similar Tickets -->
         <template v-if="showRecentSimilarTickets">
@@ -174,9 +176,11 @@ import Tags from "../tag/Tags.vue";
 import TicketField from "../TicketField.vue";
 import AssignTo from "./AssignTo.vue";
 import InchaaAdminTaskPanel from "./InchaaAdminTaskPanel.vue";
+import InchaaCompanyPanel from "./InchaaCompanyPanel.vue";
 import TicketContact from "./TicketContact.vue";
 import TicketFeedback from "./TicketFeedback.vue";
 import TicketSLA from "./TicketSLA.vue";
+import ZiwoTicketCalls from "./ZiwoTicketCalls.vue";
 
 const ticket = inject(TicketSymbol)!;
 const assignees = inject(AssigneeSymbol)!;

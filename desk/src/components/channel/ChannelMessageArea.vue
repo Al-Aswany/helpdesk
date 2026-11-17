@@ -2,106 +2,119 @@
   <div
     :id="elementId"
     v-bind="$attrs"
-    class="grow bg-surface-base rounded-md text-base leading-6 transition-all duration-300 ease-in-out border border-outline-gray-2"
+    class="timeline-card grow overflow-hidden rounded-5 border border-outline-gray-2 bg-surface-base text-base leading-6 transition-all duration-300 ease-in-out"
     :data-direction="activity.direction"
     :data-outbound-state="view?.state"
     data-testid="channel-message"
   >
-    <div class="flex items-center justify-between gap-2">
-      <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
-        <span dir="auto" class="truncate font-medium text-ink-gray-8">{{
-          senderName
-        }}</span>
-        <span
-          class="inline-flex items-center gap-1 text-p-xs text-ink-gray-5"
-          data-testid="channel-message-meta"
+    <!-- Same frame as TimelineCard/EmailItem: 40px header, 12px inline padding,
+         full-width divider. The row wraps instead of assuming a single line. -->
+    <div class="ps-3 pe-3">
+      <div
+        class="flex min-h-10 flex-wrap items-center justify-between gap-x-2 gap-y-1 py-2"
+      >
+        <div
+          class="flex min-w-0 max-w-full flex-wrap items-center gap-x-2 gap-y-0.5"
         >
-          <ChannelIcon
-            :name="activity.channel.icon"
-            class="size-3.5 shrink-0"
+          <span
+            dir="auto"
+            class="max-w-full truncate font-medium text-ink-gray-8"
+            >{{ senderName }}</span
+          >
+          <span
+            class="inline-flex max-w-full flex-wrap items-center gap-x-1 gap-y-0.5 text-p-xs text-ink-gray-5"
+            data-testid="channel-message-meta"
+          >
+            <ChannelIcon
+              :name="activity.channel.icon"
+              class="size-3.5 shrink-0"
+            />
+            <span>{{ activity.channel.label }}</span>
+            <span aria-hidden="true">·</span>
+            <component
+              :is="incoming ? LucideArrowDownLeft : LucideArrowUpRight"
+              class="size-3.5 shrink-0 rtl:-scale-x-100"
+              aria-hidden="true"
+            />
+            <span>{{ incoming ? __("Received") : __("Sent") }}</span>
+          </span>
+        </div>
+        <div class="ms-auto flex items-center gap-2">
+          <Badge
+            v-if="view"
+            :label="__(view.label)"
+            variant="subtle"
+            :theme="view.tone"
+            :title="__(view.detail)"
+            data-testid="channel-message-state"
           />
-          <span>{{ activity.channel.label }}</span>
-          <span aria-hidden="true">·</span>
-          <component
-            :is="incoming ? LucideArrowDownLeft : LucideArrowUpRight"
-            class="size-3.5 shrink-0 rtl:-scale-x-100"
-            aria-hidden="true"
-          />
-          <span>{{ incoming ? __("Received") : __("Sent") }}</span>
-        </span>
+          <Tooltip
+            v-if="activity.creation"
+            :text="dateFormat(activity.creation, dateTooltipFormat)"
+          >
+            <p class="whitespace-nowrap text-sm text-ink-gray-5">
+              {{ timeAgo(activity.creation) }}
+            </p>
+          </Tooltip>
+        </div>
       </div>
-      <div class="flex shrink-0 items-center gap-2">
-        <Badge
-          v-if="view"
-          :label="__(view.label)"
+    </div>
+
+    <hr class="border-t border-outline-elevation-2" />
+
+    <!-- px-3 pb-2 plus 12px above the text, matching EmailItem. Plain text only. -->
+    <div class="flex flex-col gap-2 px-3 pb-2 pt-3">
+      <!-- Customer text is plain text: interpolation only, never v-html -->
+      <p
+        v-if="(activity.content || '').trim()"
+        dir="auto"
+        class="whitespace-pre-wrap break-words text-p-base text-ink-gray-8"
+        data-testid="channel-message-text"
+      >
+        {{ activity.content }}
+      </p>
+
+      <p
+        v-if="view && showDetail"
+        class="text-p-sm"
+        :class="detailClass"
+        :role="view.tone === 'red' ? 'alert' : 'status'"
+        data-testid="channel-message-detail"
+      >
+        <span dir="auto">{{ view.detail }}</span>
+      </p>
+
+      <div v-if="canReuse">
+        <Button
+          size="sm"
           variant="subtle"
-          :theme="view.tone"
-          :title="__(view.detail)"
-          data-testid="channel-message-state"
+          :label="
+            view?.state === 'Uncertain'
+              ? __('Retry anyway')
+              : __('Edit and send again')
+          "
+          data-testid="channel-message-reuse"
+          @click="reuse"
         />
-        <Tooltip
-          v-if="activity.creation"
-          :text="dateFormat(activity.creation, dateTooltipFormat)"
-        >
-          <p class="text-xs md:text-sm text-ink-gray-5">
-            {{ timeAgo(activity.creation) }}
-          </p>
-        </Tooltip>
       </div>
-    </div>
 
-    <div class="border-0 border-t my-3 border-outline-elevation-2 !-mx-3" />
+      <p
+        v-if="activity.attachmentName"
+        dir="auto"
+        class="text-p-sm text-ink-gray-6"
+        data-testid="channel-attachment-name"
+      >
+        {{ activity.attachmentName }}
+      </p>
 
-    <!-- Customer text is plain text: interpolation only, never v-html -->
-    <p
-      v-if="(activity.content || '').trim()"
-      dir="auto"
-      class="whitespace-pre-wrap break-words text-p-base text-ink-gray-8"
-      data-testid="channel-message-text"
-    >
-      {{ activity.content }}
-    </p>
-
-    <p
-      v-if="view && showDetail"
-      class="mt-2 text-p-sm"
-      :class="detailClass"
-      :role="view.tone === 'red' ? 'alert' : 'status'"
-      data-testid="channel-message-detail"
-    >
-      <span dir="auto">{{ view.detail }}</span>
-    </p>
-
-    <div v-if="canReuse" class="mt-2">
-      <Button
-        size="sm"
-        variant="subtle"
-        :label="
-          view?.state === 'Uncertain'
-            ? __('Retry anyway')
-            : __('Edit and send again')
-        "
-        data-testid="channel-message-reuse"
-        @click="reuse"
-      />
-    </div>
-
-    <p
-      v-if="activity.attachmentName"
-      dir="auto"
-      class="mt-2 text-p-sm text-ink-gray-6"
-      data-testid="channel-attachment-name"
-    >
-      {{ activity.attachmentName }}
-    </p>
-
-    <div v-if="activity.attachments?.length" class="mt-2 flex flex-wrap gap-2">
-      <AttachmentItem
-        v-for="a in activity.attachments"
-        :key="a.file_url"
-        :label="a.file_name"
-        :url="a.file_url"
-      />
+      <div v-if="activity.attachments?.length" class="flex flex-wrap gap-2">
+        <AttachmentItem
+          v-for="a in activity.attachments"
+          :key="a.file_url"
+          :label="a.file_name"
+          :url="a.file_url"
+        />
+      </div>
     </div>
   </div>
 </template>
@@ -153,7 +166,10 @@ const elementId = computed(() =>
 
 const view = computed(() =>
   props.activity.outbound
-    ? outboundView(props.activity.outbound, props.activity.channel?.label || "WhatsApp")
+    ? outboundView(
+        props.activity.outbound,
+        props.activity.channel?.label || "WhatsApp"
+      )
     : null
 );
 
