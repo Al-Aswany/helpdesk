@@ -116,6 +116,7 @@ import UserMenu from "@/components/UserMenu.vue";
 import ViewModal from "@/components/ViewModal.vue";
 import { useDevice } from "@/composables";
 import { currentView, useView } from "@/composables/useView";
+import { useAuthStore } from "@/stores/auth";
 import { useNotificationStore } from "@/stores/notification";
 import { useSidebarStore } from "@/stores/sidebar";
 import { useTelephonyStore } from "@/stores/telephony";
@@ -197,12 +198,14 @@ function selectItem(key: string, to: RouteLocationRaw, onSelect?: () => void) {
   router.push(to);
 }
 
+const auth = useAuthStore();
 const navItems = computed(() => {
   const options = isCustomerPortal.value
     ? customerPortalSidebarOptions
     : agentPortalSidebarOptions;
   return options
-    .filter((item) => isCallingEnabled.value || item.label !== __("Call Logs"))
+    .filter((item) => isCallingEnabled.value || item.to !== "CallLogs")
+    .filter((item) => auth.isAgent || item.to !== "FollowUp")
     .map((option, index) => ({
       label: option.label,
       icon: option.icon,

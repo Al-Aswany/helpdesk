@@ -132,6 +132,13 @@ const portalRoutes = [
     component: () => import("@/pages/call-logs/CallLogs.vue"),
   },
 
+  {
+    path: "/follow-up",
+    name: "FollowUp",
+    component: () => import("@/pages/follow-up/FollowUp.vue"),
+    meta: { agent: true },
+  },
+
   // Customer Portal Routes
   {
     path: "/my-tickets",
@@ -248,6 +255,8 @@ router.beforeEach(async (to, _, next) => {
       name: "TicketCustomer",
       params: { ticketId },
     });
+  } else if (to.meta.agent && !authStore.isAgent) {
+    next({ name: authStore.hasDeskAccess ? "Home" : "TicketsCustomer" });
   } else if (!to.meta.public && !authStore.hasDeskAccess) {
     next({ name: "TicketsCustomer" });
   } else {

@@ -1,0 +1,34 @@
+{
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "phone",
+  "ticket",
+  "assigned_agent",
+  "due_at",
+  "summary",
+  "source_reference",
+  "outcome",
+  "result_note",
+  "completed_by",
+  "completed_at"
+ ],
+ "fields": [
+  {"fieldname": "phone", "fieldtype": "Data", "label": "Phone", "reqd": 1},
+  {"fieldname": "ticket", "fieldtype": "Link", "label": "Ticket", "options": "HD Ticket"},
+  {"fieldname": "assigned_agent", "fieldtype": "Link", "label": "Assigned agent", "options": "User"},
+  {"fieldname": "due_at", "fieldtype": "Datetime", "label": "Due at", "reqd": 1, "search_index": 1},
+  {"fieldname": "summary", "fieldtype": "Small Text", "label": "Reason", "reqd": 1},
+  {"fieldname": "source_reference", "fieldtype": "Data", "label": "ZIWO call reference", "unique": 1},
+  {"fieldname": "outcome", "fieldtype": "Select", "label": "Outcome", "options": "\nReached\nNo answer\nCancelled"},
+  {"fieldname": "result_note", "fieldtype": "Small Text", "label": "Result note"},
+  {"fieldname": "completed_by", "fieldtype": "Link", "label": "Completed by", "options": "User", "read_only": 1},
+  {"fieldname": "completed_at", "fieldtype": "Datetime", "label": "Completed at", "read_only": 1}
+ ],
+ "module": "Helpdesk",
+ "name": "HD Callback",
+ "permissions": [],
+ "sort_field": "due_at",
+ "sort_order": "ASC",
+ "track_changes": 1
+}
