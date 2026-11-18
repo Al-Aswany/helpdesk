@@ -84,8 +84,10 @@ export function recentTicketCommands(): Command[] {
 /** The sidebar's own nav list, so labels and icons can't drift from it. */
 function navigateCommands(): Command[] {
   const callingEnabled = useTelephonyStore().isCallingEnabled;
+  const isAgent = useAuthStore().isAgent;
   return agentPortalSidebarOptions
-    .filter((option) => callingEnabled || option.label !== __("Call Logs"))
+    .filter((option) => callingEnabled || option.to !== "CallLogs")
+    .filter((option) => isAgent || option.to !== "FollowUp")
     .map((option) => ({
       id: `go-${option.to}`,
       title: __(option.label),

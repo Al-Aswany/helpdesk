@@ -401,9 +401,13 @@ watchEffect(async () => {
 
 // On mobile, collapse all custom actions into a single three-dot group
 const mobileCustomActions = computed(() => {
-  if (!customActions.value.length) return [];
-
-  const items: { label: string; onClick: () => void }[] = [];
+  const items: { label: string; onClick: () => void }[] = [
+    {
+      label: __("Schedule callback"),
+      onClick: () =>
+        router.push({ name: "FollowUp", query: { ticket: props.ticketId } }),
+    },
+  ];
 
   for (const action of customActions.value) {
     if (action.group) {

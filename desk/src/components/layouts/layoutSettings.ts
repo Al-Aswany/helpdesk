@@ -1,4 +1,5 @@
 import { ref } from "vue";
+import LucideListTodo from "~icons/lucide/list-todo";
 import LucideBookOpen from "~icons/lucide/book-open";
 import LucideUsers from "~icons/lucide/users";
 import LucideTicket from "~icons/lucide/ticket";
@@ -49,6 +50,11 @@ export const agentPortalSidebarOptions = [
     label: __("Call Logs"),
     icon: PhoneIcon,
     to: "CallLogs",
+  },
+  {
+    label: __("Follow-up"),
+    icon: LucideListTodo,
+    to: "FollowUp",
   },
 ];
 

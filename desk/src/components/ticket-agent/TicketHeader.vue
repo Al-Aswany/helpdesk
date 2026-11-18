@@ -85,6 +85,8 @@
 </template>
 
 <script setup lang="ts">
+import LucideMerge from "~icons/lucide/merge";
+import LucidePhone from "~icons/lucide/phone";
 import LucideChevronUp from "~icons/lucide/chevron-up";
 import LucideChevronDown from "~icons/lucide/chevron-down";
 import Icon from "@/components/Icon.vue";
@@ -128,7 +130,6 @@ import {
   watchEffect,
 } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import LucideMerge from "~icons/lucide/merge";
 import { IndicatorIcon } from "../icons";
 import TicketSubjectModal from "./TicketSubjectModal.vue";
 const { isAdmin } = useAuthStore();
@@ -247,7 +248,18 @@ const showMergeOption = computed(() => {
   );
 });
 const defaultActions = computed(() => {
-  let items = [];
+  const items = [
+    {
+      label: __("Schedule callback"),
+      icon: LucidePhone,
+      condition: () => !!ticket.value.doc?.name,
+      onClick: () =>
+        router.push({
+          name: "FollowUp",
+          query: { ticket: ticket.value.doc.name },
+        }),
+    },
+  ];
 
   if (showMergeOption.value) {
     items.push({
