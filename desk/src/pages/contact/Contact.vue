@@ -122,7 +122,7 @@
               <ContactCalls
                 v-if="tab.label === __('Calls')"
                 :calls="outreach.data?.calls || []"
-                :loading="outreach.loading"
+                :loading="outreach.loading && !outreach.data"
                 :error="outreach.error?.messages?.[0] || ''"
                 @record="openOutcome"
               />
@@ -184,8 +184,10 @@ import {
   useContactResetPassword,
 } from "@/composables/contact";
 import { useScreenSize } from "@/composables/screen";
+import { useTelephonyStore } from "@/stores/telephony";
 import { __ } from "@/translation";
 import { hasPermission } from "@/utils";
+import { storeToRefs } from "pinia";
 import {
   Breadcrumbs,
   Button,
@@ -195,7 +197,15 @@ import {
   dayjs,
   usePageMeta,
 } from "frappe-ui";
-import { computed, h, markRaw, onMounted, ref, watch } from "vue";
+import {
+  computed,
+  h,
+  markRaw,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+} from "vue";
 import { useRoute, useRouter } from "vue-router";
 import LucideMail from "~icons/lucide/mail";
 import LucideMapPin from "~icons/lucide/map-pin";
@@ -251,6 +261,20 @@ const outreach = createResource({
 });
 const outcomeOpen = ref(false);
 const outcomeCall = ref<any>(null);
+
+// The softphone saves call events while this page is open. Each save changes this Contact's
+// calls and totals, so the list is reloaded. Saves arrive in bursts, so they become one reload.
+const { ziwoHistoryVersion } = storeToRefs(useTelephonyStore());
+let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+function scheduleRefresh() {
+  clearTimeout(refreshTimer);
+  refreshTimer = setTimeout(() => {
+    if (outreach.loading) return scheduleRefresh();
+    void outreach.reload();
+  }, 800);
+}
+watch(ziwoHistoryVersion, scheduleRefresh);
+onBeforeUnmount(() => clearTimeout(refreshTimer));
 const phones = computed(() => {
   const numbers = (contact.doc?.phone_nos || [])
     .map((row: { phone?: string }) => (row.phone || "").trim())
@@ -433,13 +457,20 @@ const breadcrumbs = [
   },
 ];
 
+let reloadedFor = "";
 watch(
   () => [outreach.data, route.query.call, route.query.callback],
   () => {
     const callName = route.query.call;
     if (typeof callName !== "string" || !callName || !outreach.data?.calls) return;
     const row = outreach.data.calls.find((item: { name: string }) => item.name === callName);
-    if (row) openOutcome(row);
+    if (row) return openOutcome(row);
+    // The call was saved after this list was loaded. Reload once per call, so a call that
+    // belongs to someone else cannot cause a loop.
+    if (reloadedFor !== callName && !outreach.loading) {
+      reloadedFor = callName;
+      void outreach.reload();
+    }
   }
 );
 

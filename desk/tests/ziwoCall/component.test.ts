@@ -786,3 +786,31 @@ test("every function the ZIWO panel template calls is defined in the panel", () 
   });
   assert.deepEqual(missing, []);
 });
+
+test("the Contact page refreshes its calls when the softphone saves events", () => {
+  const page = code(read("pages/contact/Contact.vue"));
+  // Saved events bump the store's version. The page listens and reloads, in one debounced step.
+  assert.match(page, /storeToRefs\(useTelephonyStore\(\)\)/);
+  assert.match(page, /watch\(ziwoHistoryVersion, scheduleRefresh\)/);
+  assert.match(page, /setTimeout\(\(\) => \{[\s\S]*?outreach\.reload\(\)/);
+  assert.match(page, /onBeforeUnmount\(\(\) => clearTimeout\(refreshTimer\)\)/);
+  // The list stays on screen during a background reload instead of flashing "Loading".
+  assert.match(page, /:loading="outreach\.loading && !outreach\.data"/);
+});
+
+test("a Record outcome link to a call the page has not loaded reloads once, never in a loop", () => {
+  const page = code(read("pages/contact/Contact.vue"));
+  const watcher = page.slice(page.indexOf("let reloadedFor"), page.indexOf("onMounted("));
+  assert.match(watcher, /if \(row\) return openOutcome\(row\);/);
+  assert.match(watcher, /reloadedFor !== callName && !outreach\.loading/);
+  assert.match(watcher, /reloadedFor = callName;[\s\S]*?outreach\.reload\(\)/);
+  assert.equal((watcher.match(/outreach\.reload\(\)/g) || []).length, 1);
+});
+
+test("the outreach summary joins its sentences with a space in script", () => {
+  const summary = code(read("components/contact/ContactOutreachSummary.vue"));
+  assert.match(summary, /parts\.join\(" "\)/);
+  assert.match(summary, /\{\{ text \}\}/);
+  // No sentence is left to the template, which dropped the spaces between them.
+  assert.doesNotMatch(summary, /<template v-if=/);
+});
