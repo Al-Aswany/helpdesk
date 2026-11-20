@@ -185,9 +185,29 @@ def get_contact_info(name: str) -> dict:
 
 def get_customers_with_image(name: str) -> list[dict]:
     customers = get_customers(contact=name)
+    fields = ["name", "image"]
+    if frappe.db.has_column("HD Customer", "custom_company_type"):
+        fields.append("custom_company_type")
+    rows = (
+        {
+            row.name: row
+            for row in frappe.get_all(
+                "HD Customer",
+                filters={"name": ["in", customers]},
+                fields=fields,
+                limit=len(customers),
+            )
+        }
+        if customers
+        else {}
+    )
     return [
-        {"name": c, "image": frappe.db.get_value("HD Customer", c, "image")}
-        for c in customers
+        {
+            "name": customer,
+            "image": (rows.get(customer) or {}).get("image"),
+            "company_type": (rows.get(customer) or {}).get("custom_company_type") or "",
+        }
+        for customer in customers
     ]
 
 

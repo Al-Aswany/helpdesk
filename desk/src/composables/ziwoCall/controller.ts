@@ -148,6 +148,10 @@ export interface CallView {
   originTicket: string;
   /** Why the originating ticket was not linked, when the server refused. */
   originError: string;
+  /** The Contact the agent dialed. Set once, from the Contact page. */
+  originContact: string;
+  /** Why that Contact was not linked, when the server refused. */
+  originContactError: string;
   /** What the server holds. */
   ticket: string;
   contact: string;
@@ -188,6 +192,7 @@ interface Intent {
   state: IntentState;
   number: string;
   ticket: string;
+  contact: string;
   error: string;
   timer: any;
 }
@@ -211,6 +216,7 @@ export interface ControllerSnapshot {
     state: IntentState;
     number: string;
     ticket: string;
+    contact: string;
     error: string;
   } | null;
   dialError: string;
@@ -634,7 +640,7 @@ export class ZiwoController {
    */
   async dial(
     rawNumber: string,
-    options: { ticket?: string } = {}
+    options: { ticket?: string; contact?: string } = {}
   ): Promise<ActionResult> {
     const number = sanitizeDialNumber(rawNumber);
     if (!number)
@@ -654,6 +660,7 @@ export class ZiwoController {
       state: "dispatching",
       number,
       ticket: String(options.ticket ?? "").trim(),
+      contact: String(options.contact ?? "").trim(),
       error: "",
       timer: null,
     };
@@ -717,6 +724,7 @@ export class ZiwoController {
     if (!call) {
       call = this.newCall(callId, "Outbound", intent.number);
       call.originTicket = intent.ticket;
+      call.originContact = intent.contact;
       call.status = "ringing";
       this.calls.set(callId, call);
       this.trim();
@@ -743,6 +751,8 @@ export class ZiwoController {
       held: false,
       originTicket: "",
       originError: "",
+      originContact: "",
+      originContactError: "",
       ticket: "",
       contact: "",
       logName: "",
@@ -819,14 +829,17 @@ export class ZiwoController {
 
     if (!call) {
       let originTicket = "";
+      let originContact = "";
       if (hint === "Outbound" && this.intentMatches(parsed)) {
         // The first outbound event after our own dispatch is that dispatch.
         originTicket = this.intent!.ticket;
+        originContact = this.intent!.contact;
         this.cancel(this.intent!.timer);
         this.intent = null;
       }
       call = this.newCall(parsed.callId, hint, parsed.number);
       call.originTicket = originTicket;
+      call.originContact = originContact;
       this.calls.set(parsed.callId, call);
       this.trim();
     } else if (call.direction === "Unknown" && hint !== "Unknown") {
@@ -900,6 +913,8 @@ export class ZiwoController {
     // event cannot lose it. Stop once the server has refused it.
     if (call.originTicket && !call.ticket && !call.originError)
       payload.ticket = call.originTicket;
+    if (call.originContact && !call.contact && !call.originContactError)
+      payload.contact = call.originContact;
     const now = this.now();
     this.outbox.push({
       id: String(payload.client_event_id),
@@ -937,6 +952,11 @@ export class ZiwoController {
               item.payload.ticket = call.originTicket;
             } else {
               delete item.payload.ticket;
+            }
+            if (call.originContact && !call.contact && !call.originContactError) {
+              item.payload.contact = call.originContact;
+            } else {
+              delete item.payload.contact;
             }
           }
           try {
@@ -1007,6 +1027,14 @@ export class ZiwoController {
     const origin = String(result.origin_link ?? "");
     if (origin && origin !== "linked" && origin !== "already_linked") {
       call.originError = origin;
+    }
+    const originContact = String(result.origin_contact_link ?? "");
+    if (
+      originContact &&
+      originContact !== "linked" &&
+      originContact !== "already_linked"
+    ) {
+      call.originContactError = originContact;
     }
     if (!hadLog && call.logName) void this.refreshPanel(call);
   }
@@ -1340,6 +1368,7 @@ export class ZiwoController {
             state: this.intent.state,
             number: this.intent.number,
             ticket: this.intent.ticket,
+            contact: this.intent.contact,
             error: this.intent.error,
           }
         : null,

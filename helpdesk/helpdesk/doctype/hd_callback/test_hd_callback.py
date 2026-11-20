@@ -126,3 +126,59 @@ class TestHDCallback(FrappeTestCase):
                         "Follow up",
                         hidden.name,
                     )
+
+    def test_one_open_callback_per_contact_and_a_new_one_after_completion(self):
+        from helpdesk.api.follow_up import close_callback, schedule_contact_callback
+
+        contact = (
+            frappe.get_doc(
+                {
+                    "doctype": "Contact",
+                    "first_name": "Callback " + frappe.generate_hash(length=6),
+                }
+            )
+            .insert(ignore_permissions=True)
+            .name
+        )
+        later = str(add_to_date(now_datetime(), hours=5))
+        with self.set_user(self.agent):
+            first = schedule_contact_callback(
+                contact=contact,
+                phone="+971500000001",
+                due_at=self.due_at,
+                summary="First",
+                assigned_agent=self.agent,
+            )
+            second = schedule_contact_callback(
+                contact=contact,
+                phone="+971500000001",
+                due_at=later,
+                summary="Moved",
+                assigned_agent=self.agent,
+            )
+        self.assertEqual(first, second)
+        self.assertEqual(frappe.db.count("HD Callback", {"contact": contact}), 1)
+        self.assertEqual(
+            frappe.db.get_value("HD Callback", first, "open_contact"), contact
+        )
+        with self.set_user(self.agent):
+            close_callback(name=first, outcome="Reached", note="Done", user=self.agent)
+            third = schedule_contact_callback(
+                contact=contact,
+                phone="+971500000001",
+                due_at=later,
+                summary="Again",
+                assigned_agent=self.agent,
+            )
+        self.assertNotEqual(third, first)
+        self.assertFalse(frappe.db.get_value("HD Callback", first, "open_contact"))
+        self.assertEqual(
+            frappe.db.get_value("HD Callback", third, "open_contact"), contact
+        )
+
+    def test_ticket_callbacks_without_a_contact_stay_independent(self):
+        first = create_callback(str(uuid4()), "+971500000000", self.due_at, "One")
+        second = create_callback(str(uuid4()), "+971500000002", self.due_at, "Two")
+        self.assertNotEqual(first, second)
+        self.assertFalse(frappe.db.get_value("HD Callback", first, "open_contact"))
+        self.assertFalse(frappe.db.get_value("HD Callback", second, "open_contact"))

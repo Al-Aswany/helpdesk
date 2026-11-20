@@ -23,6 +23,12 @@
       >
         <template #actions>
           <div class="flex gap-2 items-center">
+            <ContactCallButton
+              :contact-id="id"
+              :phones="phones"
+              :shared="outreach.data?.shared_contacts || []"
+              :last-outcome="outreach.data?.summary?.inchaa_last_outcome || ''"
+            />
             <Button
               variant="subtle"
               @click="showEditDialog = true"
@@ -43,6 +49,31 @@
           </div>
         </template>
       </PageInfo>
+      <div class="flex flex-wrap items-center gap-3 px-5">
+        <span
+          v-for="customer in companyTypes"
+          :key="customer.name"
+          class="rounded bg-surface-gray-2 px-2 py-0.5 text-sm text-ink-gray-7"
+        >
+          {{ customer.name }}
+          <template v-if="customer.company_type">
+            · {{ customer.company_type }}
+          </template>
+        </span>
+        <ContactOutreachSummary :summary="outreach.data?.summary" />
+      </div>
+      <div
+        v-if="outreach.data?.open_callback"
+        class="mx-5 flex flex-wrap items-center justify-between gap-2 rounded border border-outline-gray-2 px-3 py-2"
+      >
+        <div>
+          <p class="font-medium text-ink-gray-9">{{ __("Follow-up due") }}</p>
+          <p class="text-sm text-ink-gray-7">
+            {{ formatWhen(outreach.data.open_callback.due_at) }}
+            — {{ outreach.data.open_callback.summary }}
+          </p>
+        </div>
+      </div>
       <div class="overflow-y-auto overscroll-y-contain flex-1 flex flex-col">
         <TicketStats :dt="'Contact'" :dn="id" v-if="!isMobileView" />
         <Tabs
@@ -88,6 +119,13 @@
                 <!-- Feedback tab content -->
                 <ContactFeedback :name="props.id" />
               </div>
+              <ContactCalls
+                v-if="tab.label === __('Calls')"
+                :calls="outreach.data?.calls || []"
+                :loading="outreach.loading"
+                :error="outreach.error?.messages?.[0] || ''"
+                @record="openOutcome"
+              />
             </div>
           </template>
         </Tabs>
@@ -109,12 +147,27 @@
       v-model="showEditDialog"
       :name="id"
     />
+    <ContactCallOutcomeDialog
+      v-model:open="outcomeOpen"
+      :contact="id"
+      :call-log="outcomeCall?.name || ''"
+      :timezone="outreach.data?.site_timezone"
+      :ticket="outcomeCall?.ticket || outcomeCall?.outcome_ticket || ''"
+      :disposition="outcomeCall?.outcome || ''"
+      :note="outcomeCall?.outcome_note || ''"
+      :zoho-lead-entered="Boolean(outcomeCall?.zoho_lead_entered)"
+      @saved="onOutcomeSaved"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
+import ContactCallButton from "@/components/contact/ContactCallButton.vue";
+import ContactCallOutcomeDialog from "@/components/contact/ContactCallOutcomeDialog.vue";
+import ContactCalls from "@/components/contact/ContactCalls.vue";
 import ContactCustomers from "@/components/contact/ContactCustomers.vue";
 import ContactFeedback from "@/components/contact/ContactFeedback.vue";
+import ContactOutreachSummary from "@/components/contact/ContactOutreachSummary.vue";
 import TicketsTab from "@/components/customer/TicketsTab.vue";
 import DeleteWithTicketsDialog from "@/components/DeleteWithTicketsDialog.vue";
 import ModifiedIcon from "@/components/icons/ModifiedIcon.vue";
@@ -138,14 +191,37 @@ import {
   Button,
   Dropdown,
   Tabs,
+  createResource,
   dayjs,
   usePageMeta,
 } from "frappe-ui";
-import { computed, h, markRaw, onMounted, ref } from "vue";
+import { computed, h, markRaw, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import LucideMail from "~icons/lucide/mail";
 import LucideMapPin from "~icons/lucide/map-pin";
 import LucidePhone from "~icons/lucide/phone";
+
+function formatWhen(value: string) {
+  return dayjs(value).format("DD MMM YYYY, HH:mm");
+}
+
+function openOutcome(row: any) {
+  outcomeCall.value = row;
+  outcomeOpen.value = true;
+  if (activeTab.value !== "calls") activeTab.value = "calls";
+  if (route.query.call) {
+    const query = { ...route.query };
+    delete query.call;
+    void router.replace({ query });
+  }
+}
+
+async function onOutcomeSaved() {
+  await outreach.reload();
+  const query = { ...route.query };
+  delete query.call;
+  void router.replace({ query });
+}
 import LucideTrash2 from "~icons/lucide/trash-2";
 import { getTicketListResource } from "../../stores/docTickets";
 
@@ -167,12 +243,38 @@ const { feedbackCount } = useContactFeedback(props.id);
 
 const { ticketsListResource, ticketsCountResource } = getTicketListResource();
 
+const outreach = createResource({
+  url: "inchaa_custmization.integrations.ziwo.api.get_contact_calls",
+  method: "GET",
+  params: { contact: props.id, limit: 50 },
+  auto: true,
+});
+const outcomeOpen = ref(false);
+const outcomeCall = ref<any>(null);
+const phones = computed(() => {
+  const numbers = (contact.doc?.phone_nos || [])
+    .map((row: { phone?: string }) => (row.phone || "").trim())
+    .filter(Boolean);
+  const mobile = (contact.doc?.mobile_no || "").trim();
+  if (mobile && !numbers.includes(mobile)) numbers.unshift(mobile);
+  return [...new Set(numbers)];
+});
+const companyTypes = computed(
+  () => contactInfoResource.data?.customers || []
+);
+
 const tabs = computed(() => [
   {
     label: __("Tickets"),
     value: "tickets",
     count: ticketsCountResource.data ?? 0,
     iconLeft: h(TicketHashIcon, { class: "size-4" }),
+  },
+  {
+    label: __("Calls"),
+    value: "calls",
+    count: outreach.data?.summary?.inchaa_call_attempts ?? 0,
+    iconLeft: h(LucidePhone, { class: "size-4" }),
   },
   {
     label: __("Feedback"),
@@ -330,6 +432,16 @@ const breadcrumbs = [
     label: props.id,
   },
 ];
+
+watch(
+  () => [outreach.data, route.query.call, route.query.callback],
+  () => {
+    const callName = route.query.call;
+    if (typeof callName !== "string" || !callName || !outreach.data?.calls) return;
+    const row = outreach.data.calls.find((item: { name: string }) => item.name === callName);
+    if (row) openOutcome(row);
+  }
+);
 
 onMounted(() => {
   ticketsListResource.update({

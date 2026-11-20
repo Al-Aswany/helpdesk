@@ -391,6 +391,24 @@
               </router-link>
             </div>
             <div
+              v-else-if="focus.contact"
+              class="flex items-center justify-between gap-2 rounded-xl border border-outline-gray-2 px-3 py-2"
+              data-testid="ziwo-linked-contact"
+            >
+              <span class="min-w-0 truncate">
+                <span class="font-medium text-ink-gray-9">{{ __("Outreach call") }}</span>
+                <span class="ms-1.5 text-ink-gray-7">{{ callerLabel(focus) || focus.contact }}</span>
+              </span>
+              <router-link
+                v-if="focus.status === 'ended' && focus.logName"
+                class="shrink-0 rounded-full bg-surface-violet-2 px-2.5 py-1 text-p-xs font-medium text-ink-violet-7"
+                data-testid="ziwo-record-outcome"
+                :to="{ name: 'Contact', params: { id: focus.contact }, query: { call: focus.logName } }"
+              >
+                {{ __("Record outcome") }}
+              </router-link>
+            </div>
+            <div
               v-else-if="ringPreview(focus)"
               class="truncate rounded-xl border border-outline-gray-2 px-3 py-2 text-ink-gray-8"
               data-testid="ziwo-ticket-preview"
@@ -1057,7 +1075,7 @@ function switchToCall(callId: string) {
  */
 async function makeOutgoingCall(
   number: string,
-  options: { ticket?: string } = {}
+  options: { ticket?: string; contact?: string } = {}
 ) {
   const ready =
     view.value.session === "signed-in" &&
@@ -1073,6 +1091,7 @@ async function makeOutgoingCall(
   try {
     const result = await controller.dial(number, {
       ticket: options.ticket || "",
+      contact: options.contact || "",
     });
     if (!result.ok && result.error) toast.error(result.error);
   } finally {
@@ -1281,8 +1300,10 @@ const newerCall = computed(() => {
 });
 
 const needsLink = computed(() => {
-  if (liveCalls.value.some((item) => !item.ticket)) return true;
-  if (wrapUp.value && !wrapUp.value.ticket) return true;
+  const unlinked = (item?: { ticket?: string; contact?: string } | null) =>
+    Boolean(item && !item.ticket && !item.contact);
+  if (liveCalls.value.some((item) => unlinked(item))) return true;
+  if (unlinked(wrapUp.value)) return true;
   for (const held of drafts.values()) if (draftIsOpen(held)) return true;
   return false;
 });
@@ -1291,11 +1312,15 @@ const barStatus = computed(() => {
   const current = liveCalls.value[0];
   if (current) {
     if (current.ticket) return __("Linked to ticket #{0}", [current.ticket]);
+    if (current.contact) return __("Outreach call");
     if (current.originTicket && !current.originError)
       return __("Linking to ticket #{0}…", [current.originTicket]);
+    if (current.originContact && !current.originContactError)
+      return __("Linking to contact…");
     return __("Not linked to a ticket yet");
   }
-  if (wrapUp.value && !wrapUp.value.ticket) return __("Call ended, not linked");
+  if (wrapUp.value && !wrapUp.value.ticket && !wrapUp.value.contact)
+    return __("Call ended, not linked");
   if (view.value.session === "signed-in")
     return __("Signed in as {0}", [view.value.agentName]);
   if (view.value.sdk === "loading" || view.value.sdk === "idle")

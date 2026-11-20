@@ -131,9 +131,16 @@
                 {{ row.summary }}
               </p>
               <RouterLink
+                v-if="row.contact"
+                :to="contactRoute(row)"
+                class="mt-1 inline-block text-ink-gray-7 underline"
+              >
+                {{ row.contact_label || row.contact }}
+              </RouterLink>
+              <RouterLink
                 v-if="row.ticket"
                 :to="ticketRoute(row.ticket)"
-                class="mt-1 inline-block text-ink-gray-7 underline"
+                class="mt-1 block text-ink-gray-7 underline"
               >
                 {{ __("Ticket #{0}", [row.ticket]) }}
               </RouterLink>
@@ -253,6 +260,9 @@
         </template>
         <p v-else-if="selected" class="text-base text-ink-gray-7">
           <bdi>{{ selected.phone }}</bdi>
+          <span v-if="selected.contact" class="ms-2">{{
+            selected.contact_label || selected.contact
+          }}</span>
           <span v-if="selected.ticket" class="ms-2">{{
             __("Ticket #{0}", [selected.ticket])
           }}</span>
@@ -342,6 +352,8 @@ interface CallbackRow {
   phone: string;
   summary: string;
   ticket?: string;
+  contact?: string;
+  contact_label?: string;
   assigned_agent?: string;
   due_at: string;
   modified: string;
@@ -446,6 +458,14 @@ const dialogTitle = computed(
 
 function ticketRoute(ticketId: string) {
   return { name: "TicketAgent", params: { ticketId } };
+}
+
+function contactRoute(row: CallbackRow) {
+  return {
+    name: "Contact",
+    params: { id: row.contact },
+    query: { callback: row.name },
+  };
 }
 
 function formatTime(value: string) {

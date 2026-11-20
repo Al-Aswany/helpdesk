@@ -16,6 +16,7 @@ CALLBACK_FIELDS = (
     "name",
     "phone",
     "ticket",
+    "contact",
     "assigned_agent",
     "due_at",
     "summary",
@@ -65,6 +66,7 @@ def get_queue(view: str = "pending", start: int = 0) -> dict:
             .limit(PAGE_SIZE + 1)
             .run(as_dict=True)
         )
+        _attach_contact_labels(rows[:PAGE_SIZE])
     else:
         frappe.throw(_("Unknown follow-up view."))
 
@@ -157,6 +159,7 @@ def create_callback(
     ticket: str = "",
     assigned_agent: str | None = None,
     source_reference: str = "",
+    contact: str = "",
 ) -> str:
     user = frappe.session.user
     try:
@@ -170,10 +173,9 @@ def create_callback(
         return name
 
     due_at = _future_due_at(due_at)
-    phone = re.sub(r"[\s().-]", "", phone)
-    if not re.fullmatch(r"\+[1-9][0-9]{1,14}", phone):
-        frappe.throw(_("Enter a phone number with its international country code."))
+    phone = _phone(phone)
     summary = _text(summary, required=True)
+    contact = _contact(contact, user)
     ticket = ticket.strip()
     assigned_agent = user if assigned_agent is None else assigned_agent.strip()
     source_reference = source_reference.strip().lower() or None
@@ -194,6 +196,16 @@ def create_callback(
         _check_ticket(ticket, user)
     if assigned_agent:
         _check_assignee(assigned_agent, ticket)
+    if contact:
+        existing = frappe.db.get_value(CALLBACK, {"open_contact": contact}, "name")
+        if existing and existing != name:
+            return schedule_contact_callback(
+                contact=contact,
+                phone=phone,
+                due_at=due_at,
+                summary=summary,
+                assigned_agent=assigned_agent or user,
+            )
     callback = frappe.get_doc(
         {
             "doctype": CALLBACK,
@@ -201,6 +213,7 @@ def create_callback(
             "due_at": due_at,
             "summary": summary,
             "ticket": ticket or None,
+            "contact": contact or None,
             "assigned_agent": assigned_agent or None,
             "source_reference": source_reference,
         }
@@ -216,7 +229,16 @@ def create_callback(
             return name
         if source_reference:
             frappe.throw(_("A callback already exists for this ZIWO call reference."))
+        if contact and frappe.db.get_value(CALLBACK, {"open_contact": contact}, "name"):
+            return schedule_contact_callback(
+                contact=contact,
+                phone=phone,
+                due_at=due_at,
+                summary=summary,
+                assigned_agent=assigned_agent or user,
+            )
         raise
+    _refresh_outreach(callback.contact)
     return callback.name
 
 
@@ -276,6 +298,92 @@ def update_callback(
             _("You cannot perform this callback action."), frappe.PermissionError
         )
     callback.save(ignore_permissions=True)
+    _refresh_outreach(callback.contact)
+
+
+def schedule_contact_callback(
+    *,
+    contact: str,
+    phone: str,
+    due_at: str,
+    summary: str,
+    assigned_agent: str,
+) -> str:
+    """Create or move the one open callback for a Contact. A second call does not add a row."""
+    contact = _contact(contact, frappe.session.user)
+    if not contact:
+        frappe.throw(_("Contact not found."), frappe.DoesNotExistError)
+    due_at = _future_due_at(due_at)
+    phone = _phone(phone)
+    summary = _text(summary, required=True)
+    _check_assignee(assigned_agent, None)
+    existing = frappe.db.get_value(CALLBACK, {"open_contact": contact}, "name")
+    if existing:
+        callback = _lock_callback_row(existing)
+        if not callback.completed_at:
+            callback.due_at = due_at
+            callback.summary = summary
+            callback.phone = phone
+            callback.assigned_agent = assigned_agent
+            callback.contact = contact
+            callback.save(ignore_permissions=True)
+            _refresh_outreach(contact)
+            return callback.name
+    callback = frappe.get_doc(
+        {
+            "doctype": CALLBACK,
+            "phone": phone,
+            "due_at": due_at,
+            "summary": summary,
+            "contact": contact,
+            "assigned_agent": assigned_agent,
+        }
+    )
+    frappe.db.savepoint("schedule_contact_callback")
+    try:
+        callback.insert(ignore_permissions=True)
+    except (frappe.DuplicateEntryError, frappe.UniqueValidationError):
+        frappe.db.rollback(save_point="schedule_contact_callback")
+        existing = frappe.db.get_value(CALLBACK, {"open_contact": contact}, "name")
+        if not existing:
+            raise
+        callback = _lock_callback_row(existing)
+        callback.due_at = due_at
+        callback.summary = summary
+        callback.phone = phone
+        callback.assigned_agent = assigned_agent
+        callback.contact = contact
+        callback.save(ignore_permissions=True)
+    _refresh_outreach(contact)
+    return callback.name
+
+
+def close_callback(*, name: str, outcome: str, note: str, user: str) -> str:
+    """Complete a callback without the queue's modified check. A second close changes nothing."""
+    if outcome not in OUTCOMES:
+        frappe.throw(_("Select a callback outcome."))
+    callback = _lock_callback_row(name)
+    if callback.completed_at:
+        return callback.name
+    if callback.contact:
+        if not frappe.has_permission("Contact", "read", doc=callback.contact, user=user):
+            frappe.throw(_("You cannot update this callback."), frappe.PermissionError)
+    elif not is_agent_manager(user) and callback.assigned_agent != user:
+        frappe.throw(_("You cannot update this callback."), frappe.PermissionError)
+    callback.result_note = _text(note)
+    callback.outcome = outcome
+    callback.completed_at = now_datetime()
+    callback.completed_by = user
+    callback.save(ignore_permissions=True)
+    _refresh_outreach(callback.contact)
+    return callback.name
+
+
+def _lock_callback_row(name: str):
+    try:
+        return frappe.get_doc(CALLBACK, name, for_update=True)
+    except frappe.QueryDeadlockError:
+        return frappe.get_doc(CALLBACK, name, for_update=True)
 
 
 def _locked_callback(name: str):
@@ -325,3 +433,49 @@ def _text(value: str, required: bool = False) -> str:
     if len(value) > 1000:
         frappe.throw(_("Enter up to 1,000 characters."))
     return value
+
+
+def _phone(phone: str) -> str:
+    phone = re.sub(r"[\s().-]", "", phone or "")
+    if not re.fullmatch(r"\+[1-9][0-9]{1,14}", phone):
+        frappe.throw(_("Enter a phone number with its international country code."))
+    return phone
+
+
+def _contact(contact: str, user: str) -> str:
+    contact = (contact or "").strip()
+    if not contact:
+        return ""
+    if not frappe.db.exists("Contact", contact):
+        frappe.throw(_("Contact not found."), frappe.DoesNotExistError)
+    if not frappe.has_permission("Contact", "read", doc=contact, user=user):
+        frappe.throw(_("You cannot access this contact."), frappe.PermissionError)
+    return contact
+
+
+def _attach_contact_labels(rows: list) -> None:
+    names = sorted({row.get("contact") for row in rows if row.get("contact")})
+    if not names or not frappe.has_permission("Contact", "read"):
+        return
+    labels = {
+        row.name: row.full_name or row.name
+        for row in frappe.get_list(
+            "Contact",
+            filters={"name": ["in", names]},
+            fields=["name", "full_name"],
+            limit=len(names),
+        )
+    }
+    for row in rows:
+        if row.get("contact"):
+            row["contact_label"] = labels.get(row.contact) or row.contact
+
+
+def _refresh_outreach(contact: str | None) -> None:
+    if not contact:
+        return
+    try:
+        from inchaa_custmization.integrations.ziwo.outreach import refresh_contact_summary
+    except ImportError:
+        return
+    refresh_contact_summary(contact)

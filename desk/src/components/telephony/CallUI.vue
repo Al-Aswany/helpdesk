@@ -135,6 +135,7 @@ function makeCallUsing() {
     const { doctype, docname } = telephonyStore.linkDoc;
     ziwo.value.makeOutgoingCall(mobileNumber.value, {
       ticket: doctype === "HD Ticket" ? docname : "",
+      contact: doctype === "Contact" ? docname : "",
     });
   }
   show.value = false;

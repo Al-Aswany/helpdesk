@@ -1415,3 +1415,56 @@ test("Decline is offered only when the SDK exposes reject", () => {
   delete h.win.ZIWO.calls.rejectCall;
   assert.equal(h.c.snapshot().canReject, false);
 });
+
+test("the contact the agent dialed stays on every saved event until the server links it", async () => {
+  const h = setup({ signedIn: true });
+  h.postImpl = async (method, args) =>
+    method === "record_call_event"
+      ? {
+          event_created: true,
+          call: {
+            direction: "Outbound",
+            ticket: "",
+            contact: "",
+            status: "Ringing",
+          },
+        }
+      : { contacts: [], tickets: [], requires_selection: false };
+  await h.c.dial("+971501112233", { contact: "CONTACT-9" });
+  h.win.emit(ev("requesting", "out-1"));
+  await tick();
+  h.win.emit(ev("hangup", "out-1"));
+  await tick();
+  await tick();
+  assert.equal(
+    saved(h).every((p) => p.args.contact === "CONTACT-9" && !("ticket" in p.args)),
+    true
+  );
+  assert.equal(h.c.snapshot().calls[0]!.originContact, "CONTACT-9");
+
+  const linked = setup({ signedIn: true });
+  let linkedContact = "";
+  linked.postImpl = async (method, args) => {
+    if (method !== "record_call_event")
+      return { contacts: [], tickets: [], requires_selection: false };
+    if (args.contact) linkedContact = args.contact;
+    return {
+      event_created: true,
+      call: {
+        direction: "Outbound",
+        ticket: "",
+        contact: linkedContact,
+        status: "Ringing",
+      },
+      ...(args.contact ? { origin_contact_link: "linked" } : {}),
+    };
+  };
+  await linked.c.dial("+971501112233", { contact: "CONTACT-8" });
+  linked.win.emit(ev("requesting", "out-1"));
+  await tick();
+  linked.win.emit(ev("active", "out-1"));
+  await tick();
+  assert.equal(saved(linked)[0]!.args.contact, "CONTACT-8");
+  assert.equal("contact" in saved(linked)[1]!.args, false);
+  assert.equal(linked.c.snapshot().calls[0]!.contact, "CONTACT-8");
+});

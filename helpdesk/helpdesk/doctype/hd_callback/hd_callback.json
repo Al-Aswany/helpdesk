@@ -4,6 +4,8 @@
  "field_order": [
   "phone",
   "ticket",
+  "contact",
+  "open_contact",
   "assigned_agent",
   "due_at",
   "summary",
@@ -16,6 +18,8 @@
  "fields": [
   {"fieldname": "phone", "fieldtype": "Data", "label": "Phone", "reqd": 1},
   {"fieldname": "ticket", "fieldtype": "Link", "label": "Ticket", "options": "HD Ticket"},
+ {"fieldname": "contact", "fieldtype": "Link", "label": "Contact", "options": "Contact", "search_index": 1},
+ {"fieldname": "open_contact", "fieldtype": "Data", "hidden": 1, "label": "Open contact", "no_copy": 1, "read_only": 1, "unique": 1},
   {"fieldname": "assigned_agent", "fieldtype": "Link", "label": "Assigned agent", "options": "User"},
   {"fieldname": "due_at", "fieldtype": "Datetime", "label": "Due at", "reqd": 1, "search_index": 1},
   {"fieldname": "summary", "fieldtype": "Small Text", "label": "Reason", "reqd": 1},
