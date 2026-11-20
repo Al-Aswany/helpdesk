@@ -202,6 +202,8 @@ test("the ticket for an outgoing call is read once, from the click, and only for
     /const \{ doctype, docname \} = telephonyStore\.linkDoc/
   );
   assert.match(callUi, /ticket: doctype === "HD Ticket" \? docname : ""/);
+  // A Contact page passes the contact the same way, and never as a ticket.
+  assert.match(callUi, /contact: doctype === "Contact" \? docname : ""/);
 });
 
 test("Twilio and Exotel wiring is intact and ZIWO is only added", () => {
@@ -519,7 +521,7 @@ test("the ticket call button keeps its ticket and places one call", () => {
   assert.match(entry, /if \(dialing\.value\) return;/);
   assert.match(
     entry,
-    /controller\.dial\(number, \{\s*ticket: options\.ticket \|\| "",?\s*\}\)/
+    /controller\.dial\(number, \{\s*ticket: options\.ticket \|\| "",\s*contact: options\.contact \|\| "",?\s*\}\)/
   );
   assert.equal((entry.match(/controller\.dial\(/g) || []).length, 1);
   assert.match(entry, /showZiwo\(\);/);
@@ -761,4 +763,26 @@ test("the footer describes the rows on screen, not the page that was just asked 
     body,
     /pageSummary\(\s*total\.value,\s*shownPage\.value,\s*shownPageSize\.value,\s*rows\.value\.length\s*\)/
   );
+});
+
+test("every function the ZIWO panel template calls is defined in the panel", () => {
+  // A template that calls an undefined function throws while rendering. Vue then unmounts the
+  // panel, which destroys the softphone frame and drops a live call, so this is checked in source.
+  const source = code(panel);
+  const template = source.slice(source.indexOf("<template>"), source.indexOf("<script"));
+  const script = source.slice(source.indexOf("<script"));
+  const called = new Set<string>();
+  for (const match of template.matchAll(/(^|[^.\w$])([a-z_][A-Za-z0-9_]*)\(/g)) {
+    called.add(match[2]!);
+  }
+  // CSS functions in class strings and the word "event(s)" in translated text are not calls.
+  const builtin = new Set(["if", "for", "switch", "function", "return", "typeof", "calc", "min", "max", "clamp", "event"]);
+  const missing = [...called].filter((name) => {
+    if (builtin.has(name)) return false;
+    const defined = new RegExp(
+      `(function\\s+${name}\\b|(const|let|var)\\s+${name}\\b|\\b${name}\\s*[,}]|import[^;]*\\b${name}\\b)`
+    );
+    return !defined.test(script);
+  });
+  assert.deepEqual(missing, []);
 });

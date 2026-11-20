@@ -397,7 +397,7 @@
             >
               <span class="min-w-0 truncate">
                 <span class="font-medium text-ink-gray-9">{{ __("Outreach call") }}</span>
-                <span class="ms-1.5 text-ink-gray-7">{{ callerLabel(focus) || focus.contact }}</span>
+                <span class="ms-1.5 text-ink-gray-7">{{ callerName(focus) || focus.contact }}</span>
               </span>
               <router-link
                 v-if="focus.status === 'ended' && focus.logName"

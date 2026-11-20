@@ -729,6 +729,11 @@ export class ZiwoController {
       this.calls.set(callId, call);
       this.trim();
       void this.runLookup(call);
+    } else {
+      // The first SDK event can arrive before startCall returns, with no number on it.
+      if (!call.number) call.number = intent.number;
+      if (!call.originTicket) call.originTicket = intent.ticket;
+      if (!call.originContact) call.originContact = intent.contact;
     }
     this.notify();
     return call;
@@ -830,14 +835,17 @@ export class ZiwoController {
     if (!call) {
       let originTicket = "";
       let originContact = "";
+      let dialed = "";
       if (hint === "Outbound" && this.intentMatches(parsed)) {
-        // The first outbound event after our own dispatch is that dispatch.
+        // The first outbound event after our own dispatch is that dispatch. Its first events
+        // carry no number, so the number we dialed is kept for the call record.
         originTicket = this.intent!.ticket;
         originContact = this.intent!.contact;
+        dialed = this.intent!.number;
         this.cancel(this.intent!.timer);
         this.intent = null;
       }
-      call = this.newCall(parsed.callId, hint, parsed.number);
+      call = this.newCall(parsed.callId, hint, parsed.number || dialed);
       call.originTicket = originTicket;
       call.originContact = originContact;
       this.calls.set(parsed.callId, call);

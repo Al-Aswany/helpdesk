@@ -136,6 +136,8 @@ test("direction is proven only by the event type, never by call.direction", () =
 
 test("dial numbers are cleaned to a string the SDK accepts, or refused", () => {
   assert.equal(sanitizeDialNumber("+971 54 148-2148"), "+971541482148");
+  assert.equal(sanitizeDialNumber("+20-01061679185"), "+201061679185");
+  assert.equal(sanitizeDialNumber("+971541482148"), "+971541482148");
   assert.equal(sanitizeDialNumber("(0100) 123 4567"), "01001234567");
   assert.equal(sanitizeDialNumber("00201001234567"), "+201001234567");
   for (const bad of ["", "   ", "abc", "12", "+", "1".repeat(30), "+97 1x"]) {

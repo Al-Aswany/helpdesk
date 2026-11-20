@@ -153,6 +153,20 @@ export function sanitizeDialNumber(raw: unknown): string | null {
     .replace(/[\s().-]/g, "")
     .trim();
   if (value.startsWith("00")) value = `+${value.slice(2)}`;
+  // +20-01061679185 is Egypt with the national trunk 0 still in it. Drop that one 0
+  // so the call reaches +201061679185. A number that already has no trunk 0 is unchanged.
+  if (value.startsWith("+")) {
+    const codes = CALLING_CODES.map((item) => item.code).sort(
+      (a, b) => b.length - a.length
+    );
+    for (const code of codes) {
+      const prefix = `+${code}0`;
+      if (value.startsWith(prefix) && value.length > prefix.length) {
+        value = `+${code}${value.slice(prefix.length)}`;
+        break;
+      }
+    }
+  }
   return /^\+?[0-9]{5,20}$/.test(value) ? value : null;
 }
 
