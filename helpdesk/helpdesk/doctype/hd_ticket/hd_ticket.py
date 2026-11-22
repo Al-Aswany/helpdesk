@@ -531,6 +531,22 @@ class HDTicket(Document):
         sender_email = frappe._dict(name=email_account_name, email_id=from_email_id)
         return sender_email, email_account_name
 
+    def _account_signature_fallback(self, email_account_name: str | None) -> str:
+        # The editor pre-fills User.email_signature; only agents without one get the account's.
+        if not email_account_name or frappe.db.get_value(
+            "User", frappe.session.user, "email_signature"
+        ):
+            return ""
+        account = frappe.db.get_value(
+            "Email Account",
+            email_account_name,
+            ["add_signature", "signature"],
+            as_dict=True,
+        )
+        if not account or not account.add_signature or not account.signature:
+            return ""
+        return f"<br><br>{account.signature}"
+
     def instantly_send_email(self):
         check: str = (
             frappe.get_value("HD Settings", None, "instantly_send_email") or "0"
@@ -742,6 +758,7 @@ class HDTicket(Document):
             return communication.name
 
         message = self.parse_content(message)
+        message += self._account_signature_fallback(sender_email.name)
 
         reply_to_email = sender_email.email_id
         rendered_template: str | None = None
