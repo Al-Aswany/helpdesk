@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   buildMessageActivities,
   formatWindowLeft,
+  hasAwaitingReceiptRows,
   hasPendingRows,
   htmlToPlainText,
   isTechnicalIdentity,
@@ -253,6 +254,13 @@ test("outbound states are shown as the backend reports them, never as delivered 
   );
   assert.equal(hasPendingRows([outbound({ state: "Failed" })]), false);
   assert.equal(hasPendingRows(null), false);
+  assert.equal(hasAwaitingReceiptRows([outbound({ state: "Accepted" })]), true);
+  assert.equal(hasAwaitingReceiptRows([outbound({ state: "Sent" })]), true);
+  assert.equal(
+    hasAwaitingReceiptRows([outbound({ state: "Delivered" })]),
+    false
+  );
+  assert.equal(hasAwaitingReceiptRows(null), false);
   const confirmed = outboundView(outbound({ state: "Confirmed" }));
   assert.equal(confirmed.state, "Confirmed");
   assert.equal(confirmed.tone, "green");

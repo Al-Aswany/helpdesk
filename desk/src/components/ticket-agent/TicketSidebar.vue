@@ -1,5 +1,5 @@
 <template>
-  <Resizer class="flex flex-col border-s h-full" side="right">
+  <Resizer class="flex flex-col border-s h-full min-w-[220px]" side="right">
     <TicketDetailsTab />
   </Resizer>
 </template>

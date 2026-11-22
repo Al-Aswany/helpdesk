@@ -161,6 +161,17 @@ export function hasPendingRows(rows: OutboundRow[] | null | undefined) {
   return Boolean(rows?.some((row) => isPendingState(row.state)));
 }
 
+/** Taken by the provider; a delivery receipt may still arrive. */
+export const AWAITING_RECEIPT_STATES = ["Accepted", "Sent"];
+
+export function hasAwaitingReceiptRows(
+  rows: OutboundRow[] | null | undefined
+) {
+  return Boolean(
+    rows?.some((row) => AWAITING_RECEIPT_STATES.includes(row.state || ""))
+  );
+}
+
 export function findRowByRequestKey(
   rows: OutboundRow[] | null | undefined,
   requestKey: string | null | undefined

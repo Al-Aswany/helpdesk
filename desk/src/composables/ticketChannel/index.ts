@@ -19,6 +19,7 @@ import {
   type ShallowRef,
 } from "vue";
 import {
+  hasAwaitingReceiptRows,
   hasPendingRows,
   replyStorageKey,
   resolveReplyChannel,
@@ -64,9 +65,14 @@ interface Entry {
   controller: ReplyController | null;
   controllerKey: string | null;
   poller: BoundedPoller;
+  /** Until when a reply sent from this tab keeps polling for its receipt. */
+  receiptWatchUntil: number;
 }
 
 const entries = new Map<string, Entry>();
+
+// Some providers (Instagram) never send receipts, so the wait must be bounded.
+const RECEIPT_WATCH_MS = 2 * 60 * 1000;
 
 function uuid() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -128,6 +134,7 @@ function entryFor(rawTicketId: string | number): Entry {
       clearTimer: (handle) => clearTimeout(handle as number),
       isVisible: () => document.visibilityState !== "hidden",
     }),
+    receiptWatchUntil: 0,
   };
   entries.set(ticketId, entry);
   return entry;
@@ -146,8 +153,16 @@ function shouldPoll(entry: Entry) {
   const descriptor = currentDescriptor(entry);
   return (
     hasPendingRows(descriptor?.outbound) ||
-    Boolean(entry.snapshot.value.pending)
+    Boolean(entry.snapshot.value.pending) ||
+    (Date.now() < entry.receiptWatchUntil &&
+      hasAwaitingReceiptRows(descriptor?.outbound))
   );
+}
+
+function startAfterSubmit(entry: Entry | null) {
+  if (!entry) return;
+  entry.receiptWatchUntil = Date.now() + RECEIPT_WATCH_MS;
+  entry.poller.start();
 }
 
 /** Read the descriptor again. A read: it can never send. */
@@ -319,7 +334,7 @@ export function useTicketChannel(
     submit: () => {
       const current = entry.value;
       const outcome = requireController().submit();
-      current?.poller.start();
+      startAfterSubmit(current);
       return outcome;
     },
     submitTemplate: (
@@ -333,13 +348,13 @@ export function useTicketChannel(
         language,
         parameters
       );
-      current?.poller.start();
+      startAfterSubmit(current);
       return outcome;
     },
     submitFile: (file: string, caption: string) => {
       const current = entry.value;
       const outcome = requireController().submitFile(file, caption);
-      current?.poller.start();
+      startAfterSubmit(current);
       return outcome;
     },
     discardDraft: () => requireController().discardDraft(),

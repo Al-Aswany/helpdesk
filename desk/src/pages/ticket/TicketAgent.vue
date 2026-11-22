@@ -2,7 +2,7 @@
   <div v-if="ticket.doc?.name && feedReady" :key="ticketId" class="flex-1">
     <TicketHeader :viewers="viewers" />
     <div class="h-full flex overflow-hidden">
-      <div class="flex-1 flex flex-col overflow-hidden">
+      <div class="flex-1 flex flex-col overflow-hidden min-w-[300px]">
         <!-- Tabs & Communication Area -->
         <TicketActivityPanel />
       </div>
