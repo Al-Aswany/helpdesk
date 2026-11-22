@@ -19,6 +19,7 @@ import {
   providerOutcomeLabel,
   reconciliationBadge,
   restStatusLines,
+  showsAsMissed,
   type HistoryRow,
 } from "../../src/composables/ziwoCall/history.ts";
 
@@ -540,6 +541,22 @@ test("a missed call is an unanswered inbound call, not an unanswered outbound ca
   assert.equal(isMissedCall(answered), false);
   assert.equal(isMissedCall(outbound), false);
   assert.equal(recentOutcome(outbound), "no-answer");
+});
+
+test("a missed incoming call reads Missed even when ZIWO calls it Cancelled", () => {
+  const missed = row({
+    direction: "Inbound",
+    status: "Ended",
+    answered: false,
+    provider_outcome: "Cancelled",
+  });
+  assert.equal(showsAsMissed(missed), true);
+  // ZIWO saw an answer the browser missed: the call was not missed.
+  assert.equal(showsAsMissed({ ...missed, provider_outcome: "Answered" }), false);
+  assert.equal(
+    showsAsMissed(row({ direction: "Outbound", status: "Ended", answered: false })),
+    false
+  );
 });
 
 test("recents keep distinct calls that share a number and a minute", () => {

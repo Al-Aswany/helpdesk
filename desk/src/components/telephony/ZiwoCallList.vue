@@ -121,6 +121,7 @@
         play it; nothing here says a recording exists, or what the call's outcome was.
       -->
       <ZiwoRecordingPlayer v-if="hasEnded(row)" :call="row.name" />
+      <slot name="actions" :row="row" />
     </li>
   </ul>
 </template>
@@ -134,6 +135,7 @@ import {
   providerDurations,
   providerOutcomeLabel,
   reconciliationBadge,
+  showsAsMissed,
   type BadgeKind,
   type HistoryRow as Row,
 } from "@/composables/ziwoCall/history";
@@ -220,6 +222,7 @@ function statusLabel(row: Row) {
 
 // ZIWO's outcome once it has been attributed to this agent; the browser's word until then.
 function headline(row: Row) {
+  if (showsAsMissed(row)) return __("Missed");
   const outcome = providerOutcomeLabel(row);
   return outcome ? __(outcome) : statusLabel(row);
 }

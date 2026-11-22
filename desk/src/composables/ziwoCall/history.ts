@@ -388,6 +388,11 @@ export function isMissedCall(row: HistoryRow): boolean {
   return row.status === "Ended" || Boolean(row.not_confirmed_ended);
 }
 
+/** A missed incoming call reads "Missed", whatever ZIWO named the hang-up. */
+export function showsAsMissed(row: HistoryRow): boolean {
+  return isMissedCall(row) && row.provider_outcome !== "Answered";
+}
+
 /** The short outcome for the recent-calls list. Unanswered outbound stays "no-answer". */
 export function recentOutcome(
   row: HistoryRow

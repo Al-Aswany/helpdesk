@@ -581,6 +581,15 @@
                   {{ __("Status and the other ticket defaults come from Helpdesk.") }}
                 </p>
                 <input
+                  v-if="unknownCaller(focus)"
+                  v-model="draft.callerName"
+                  class="w-full rounded border border-outline-gray-2 px-2 py-1"
+                  :placeholder="__('Caller name (optional)')"
+                  :aria-label="__('Caller name (optional)')"
+                  maxlength="140"
+                  data-testid="ziwo-create-caller-name"
+                />
+                <input
                   v-model="draft.subject"
                   class="w-full rounded border border-outline-gray-2 px-2 py-1"
                   :placeholder="__('Subject')"
@@ -681,6 +690,14 @@
                 v-if="focusRow && offerRecording(focusRow)"
                 :call="focusRow.name"
               />
+              <router-link
+                v-if="focus.ticket && focus.logName && outcomeContact(focus)"
+                class="rounded-full bg-surface-violet-2 px-2.5 py-1 text-p-xs font-medium text-ink-violet-7"
+                data-testid="ziwo-ticket-record-outcome"
+                :to="{ name: 'Contact', params: { id: outcomeContact(focus) }, query: { call: focus.logName } }"
+              >
+                {{ __("Record outcome") }}
+              </router-link>
             </div>
 
             <form
@@ -850,6 +867,7 @@ interface CallDraft {
   searchEmpty: boolean;
   pending: TicketChoice | null;
   showCreate: boolean;
+  callerName: string;
   subject: string;
   summary: string;
   fields: Record<string, string>;
@@ -870,6 +888,7 @@ function emptyDraft(): CallDraft {
     searchEmpty: false,
     pending: null,
     showCreate: false,
+    callerName: "",
     subject: "",
     summary: "",
     fields: {},
@@ -889,6 +908,7 @@ function draftIsOpen(held: CallDraft | undefined): boolean {
   return Boolean(
     held.pending ||
       held.showCreate ||
+      held.callerName.trim() ||
       held.subject.trim() ||
       held.summary.trim() ||
       typed ||
@@ -907,6 +927,7 @@ function draftIsOpen(held: CallDraft | undefined): boolean {
 function clearTicketDraft(held: CallDraft) {
   held.pending = null;
   held.showCreate = false;
+  held.callerName = "";
   held.subject = "";
   held.summary = "";
   held.fields = {};
@@ -1177,12 +1198,13 @@ async function onCreate() {
   const subject = held.subject;
   const description = held.summary;
   const values = { ...held.fields };
+  const callerName = unknownCaller(call) ? held.callerName : "";
   held.logName = callLog;
   held.creating = true;
   held.error = "";
   const result = await controller.createTicket(
     callId,
-    { subject, description, values },
+    { subject, description, values, callerName },
     { callLog }
   );
   const same = drafts.get(callId);
@@ -1451,6 +1473,10 @@ function callerName(item: CallView | null) {
   const chosen = item.contact ? contacts.find((c) => c.name === item.contact) : null;
   if (chosen) return chosen.label;
   return contacts.length === 1 && !item.contact ? contacts[0]!.label : "";
+}
+
+function outcomeContact(item: CallView) {
+  return item.contact || item.panel?.contact?.name || "";
 }
 
 function callerContacts(item: CallView) {

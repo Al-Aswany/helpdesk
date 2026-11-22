@@ -294,6 +294,7 @@ import {
   providerDurations,
   providerOutcomeLabel,
   reconciliationBadge,
+  showsAsMissed,
   type BadgeKind,
   type CallLogPage,
   type HistoryRow,
@@ -360,6 +361,7 @@ const directionOptions = computed(() => [
   { label: __("All directions"), value: "" },
   { label: __("Incoming"), value: "Inbound" },
   { label: __("Outgoing"), value: "Outbound" },
+  { label: __("Missed"), value: "missed" },
 ]);
 const reconciliationOptions = computed(() => [
   { label: __("Any reconciliation status"), value: "" },
@@ -399,7 +401,12 @@ async function load(silent = false) {
       page: page.value,
       page_size: pageSize.value,
       scope: scope.value,
-      direction: direction.value || undefined,
+      // "Missed" is an outcome filter on the server; it already means incoming.
+      direction:
+        direction.value && direction.value !== "missed"
+          ? direction.value
+          : undefined,
+      outcome: direction.value === "missed" ? "missed" : undefined,
       reconciliation: reconciliation.value || undefined,
       search: appliedSearch.value || undefined,
     });
@@ -492,6 +499,7 @@ function directionLabel(value: string) {
 
 // ZIWO's outcome once it has been attributed to this agent; the browser's word until then.
 function headline(row: HistoryRow) {
+  if (showsAsMissed(row)) return __("Missed");
   const outcome = providerOutcomeLabel(row);
   if (outcome) return __(outcome);
   const seen = observedStatus(row);

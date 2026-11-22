@@ -1315,7 +1315,12 @@ export class ZiwoController {
 
   async createTicket(
     callId: string,
-    fields: { subject: string; description: string; values?: Record<string, string> },
+    fields: {
+      subject: string;
+      description: string;
+      values?: Record<string, string>;
+      callerName?: string;
+    },
     options: { callLog?: string } = {}
   ): Promise<ActionResult> {
     const ready = await this.savedCall(callId);
@@ -1329,6 +1334,7 @@ export class ZiwoController {
         subject: fields.subject,
         description: fields.description,
         values: fields.values ?? {},
+        caller_name: fields.callerName ?? "",
       });
       const server = result?.call ?? {};
       call.ticket = String(server.ticket ?? result?.ticket?.name ?? "");

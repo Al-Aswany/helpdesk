@@ -807,6 +807,43 @@ test("a Record outcome link to a call the page has not loaded reloads once, neve
   assert.equal((watcher.match(/outreach\.reload\(\)/g) || []).length, 1);
 });
 
+test("a finished ticket call offers Record outcome for the call's contact", () => {
+  const source = code(panel);
+  assert.match(
+    source,
+    /v-if="focus\.ticket && focus\.logName && outcomeContact\(focus\)"[\s\S]*?query: \{ call: focus\.logName \}/
+  );
+  assert.match(source, /item\.contact \|\| item\.panel\?\.contact\?\.name/);
+});
+
+test("Call Logs and call cards label missed calls and the Missed filter asks the server", () => {
+  const logs = code(ziwoLogs);
+  assert.match(logs, /\{ label: __\("Missed"\), value: "missed" \}/);
+  assert.match(logs, /outcome: direction\.value === "missed" \? "missed" : undefined/);
+  for (const source of [logs, code(list)])
+    assert.match(source, /function headline\([^)]*\) \{\s*if \(showsAsMissed\(row\)\) return __\("Missed"\);/);
+});
+
+test("an unknown caller's ticket form asks for an optional caller name", () => {
+  const source = code(panel);
+  assert.match(source, /v-if="unknownCaller\(focus\)"\s*v-model="draft\.callerName"/);
+  assert.match(source, /const callerName = unknownCaller\(call\) \? held\.callerName : "";/);
+  assert.match(code(controller), /caller_name: fields\.callerName \?\? ""/);
+});
+
+test("agents keep the full name the server sends", () => {
+  assert.match(
+    code(read("stores/user.ts")),
+    /user\.full_name = user\.full_name \|\| formatFullName\(user\.email\);/
+  );
+});
+
+test("each contact call card carries its own outcome action", () => {
+  const calls = code(read("components/contact/ContactCalls.vue"));
+  assert.match(code(list), /<slot name="actions" :row="row" \/>/);
+  assert.match(calls, /<template #actions="\{ row \}">[\s\S]*?\$emit\('record', row\)/);
+});
+
 test("the outreach summary joins its sentences with a space in script", () => {
   const summary = code(read("components/contact/ContactOutreachSummary.vue"));
   assert.match(summary, /parts\.join\(" "\)/);

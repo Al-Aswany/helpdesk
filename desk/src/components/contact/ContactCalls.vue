@@ -6,22 +6,19 @@
     <p v-else-if="error" role="alert" class="text-base text-ink-red-6">
       {{ error }}
     </p>
-    <template v-else>
-      <ZiwoCallList
-        :calls="calls"
-        :show-agent="true"
-        :show-ticket="true"
-        :empty-text="__('No calls yet.')"
-      />
-      <ul v-if="calls.length" class="space-y-2">
-        <li
-          v-for="row in calls"
-          :key="row.name"
-          class="flex flex-wrap items-center gap-2 text-sm text-ink-gray-7"
+    <ZiwoCallList
+      v-else
+      :calls="calls"
+      :show-agent="true"
+      :show-ticket="true"
+      :empty-text="__('No calls yet.')"
+    >
+      <template #actions="{ row }">
+        <div
+          class="flex flex-wrap items-center gap-2 pt-1 text-sm text-ink-gray-7"
+          data-testid="contact-call-outcome"
         >
-          <span class="font-medium text-ink-gray-8">
-            {{ row.agent_name || row.agent }}
-          </span>
+          <span class="font-medium text-ink-gray-8">{{ __("Outcome") }}:</span>
           <span>{{ row.outcome ? __(row.outcome) : __("Outcome missing") }}</span>
           <span v-if="row.outcome_note" class="max-w-md truncate">{{
             row.outcome_note
@@ -36,9 +33,9 @@
             :label="row.outcome ? __('Edit outcome') : __('Record outcome')"
             @click="$emit('record', row)"
           />
-        </li>
-      </ul>
-    </template>
+        </div>
+      </template>
+    </ZiwoCallList>
   </div>
 </template>
 
