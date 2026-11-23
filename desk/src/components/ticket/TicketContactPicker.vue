@@ -6,7 +6,7 @@
     </span>
     <div
       v-if="chosen"
-      class="flex items-center justify-between gap-2 rounded border border-outline-gray-2 px-3 py-2 text-base"
+      class="flex items-center justify-between gap-2 rounded-4 border border-outline-gray-1 px-3 py-2 text-base"
       data-testid="ticket-contact-chosen"
     >
       <span class="min-w-0 truncate">
@@ -17,7 +17,7 @@
     </div>
     <form
       v-else-if="creating"
-      class="grid grid-cols-1 gap-2 rounded border border-outline-gray-2 p-3 sm:grid-cols-3"
+      class="grid grid-cols-1 gap-2 rounded-4 border border-outline-gray-1 p-3 sm:grid-cols-3"
       data-testid="ticket-contact-form"
       @submit.prevent="create"
     >
@@ -68,7 +68,7 @@
       />
       <ul
         v-if="results.data?.length"
-        class="divide-y divide-outline-gray-1 rounded border border-outline-gray-2 text-base"
+        class="divide-y divide-outline-gray-1 rounded-4 border border-outline-gray-1 text-base"
       >
         <li v-for="row in results.data" :key="row.name">
           <button

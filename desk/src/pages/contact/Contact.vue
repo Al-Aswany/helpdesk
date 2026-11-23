@@ -64,7 +64,7 @@
       </div>
       <div
         v-if="outreach.data?.open_callback"
-        class="mx-5 flex flex-wrap items-center justify-between gap-2 rounded border border-outline-gray-2 px-3 py-2"
+        class="mx-5 flex flex-wrap items-center justify-between gap-2 rounded-4 border border-outline-gray-1 bg-surface-elevation-2 px-4 py-3"
       >
         <div>
           <p class="font-medium text-ink-gray-9">{{ __("Follow-up due") }}</p>

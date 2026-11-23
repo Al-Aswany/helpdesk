@@ -8,7 +8,7 @@
   <Tooltip v-if="isZiwoEnabled" :text="toggleLabel">
     <button
       type="button"
-      class="relative mt-1.5 flex size-7 items-center justify-center rounded text-ink-gray-6 hover:bg-surface-gray-2"
+      class="relative mt-1.5 flex size-7 items-center justify-center rounded-4 text-ink-gray-6 hover:bg-surface-gray-2"
       :aria-label="toggleLabel"
       data-testid="ziwo-toggle"
       @click="togglePanel"
@@ -33,7 +33,7 @@
       allow="microphone; autoplay"
       :class="
         vendorVisible
-          ? 'fixed bottom-[4.5rem] end-4 z-[60] h-[560px] max-h-[calc(100vh-6.5rem)] w-[min(22.5rem,calc(100vw-1rem))] rounded-lg border border-outline-gray-3 bg-surface-base shadow-2xl'
+          ? 'fixed bottom-[4.5rem] end-4 z-[60] h-[560px] max-h-[calc(100vh-6.5rem)] w-[min(22.5rem,calc(100vw-1rem))] rounded-4 border border-outline-gray-2 bg-surface-base shadow-2xl'
           : 'pointer-events-none fixed bottom-0 end-0 size-px border-0 opacity-0'
       "
       :aria-hidden="!vendorVisible"
@@ -43,7 +43,7 @@
 
     <div
       v-if="isZiwoEnabled && vendorVisible"
-      class="fixed bottom-4 end-4 z-[60] flex w-[min(22.5rem,calc(100vw-1rem))] items-center justify-between gap-2 rounded-lg border border-outline-gray-3 bg-surface-base px-3 py-2 text-p-sm text-ink-gray-8 shadow-2xl"
+      class="fixed bottom-4 end-4 z-[60] flex w-[min(22.5rem,calc(100vw-1rem))] items-center justify-between gap-2 rounded-4 border border-outline-gray-2 bg-surface-base px-3 py-2 text-p-sm text-ink-gray-8 shadow-2xl"
       data-testid="ziwo-vendor-bar"
     >
       <span
@@ -85,7 +85,7 @@
         vendorVisible &&
         (view.unsaved.count || view.unparsedEvents)
       "
-      class="fixed end-4 top-14 z-[70] w-[min(22.5rem,calc(100vw-1rem))] space-y-1 rounded-lg border border-outline-gray-3 bg-surface-red-2 p-3 text-p-sm text-ink-red-6 shadow-2xl"
+      class="fixed end-4 top-14 z-[70] w-[min(22.5rem,calc(100vw-1rem))] space-y-1 rounded-4 border border-outline-gray-2 bg-surface-red-2 p-3 text-p-sm text-ink-red-6 shadow-2xl"
       role="alert"
       data-testid="ziwo-vendor-alert"
     >
@@ -127,7 +127,7 @@
 
     <section
       v-if="isZiwoEnabled && open"
-      class="fixed bottom-4 end-4 z-50 flex h-[560px] max-h-[calc(100dvh-3rem)] w-[min(22.5rem,calc(100vw-1rem))] flex-col overflow-hidden rounded-2xl border border-outline-gray-2 bg-surface-base text-start text-p-sm text-ink-gray-8 shadow-2xl"
+      class="fixed bottom-4 end-4 z-50 flex h-[560px] max-h-[calc(100dvh-3rem)] w-[min(22.5rem,calc(100vw-1rem))] flex-col overflow-hidden rounded-4 border border-outline-gray-1 bg-surface-base text-start text-p-sm text-ink-gray-8 shadow-2xl"
       :class="vendorVisible ? 'hidden' : ''"
       role="dialog"
       aria-label="Call & ticket"
@@ -152,7 +152,7 @@
         </span>
         <button
           type="button"
-          class="flex size-7 items-center justify-center rounded text-ink-gray-6 hover:bg-surface-gray-2"
+          class="flex size-7 items-center justify-center rounded-4 text-ink-gray-6 hover:bg-surface-gray-2"
           :class="showDetails ? 'bg-surface-gray-2 text-ink-gray-9' : ''"
           :aria-label="__('Connection details')"
           :aria-pressed="showDetails"
@@ -163,7 +163,7 @@
         </button>
         <button
           type="button"
-          class="flex size-7 items-center justify-center rounded text-ink-gray-6 hover:bg-surface-gray-2"
+          class="flex size-7 items-center justify-center rounded-4 text-ink-gray-6 hover:bg-surface-gray-2"
           :aria-label="__('Hide')"
           data-testid="ziwo-hide"
           @click="closePanel"
@@ -286,7 +286,7 @@
         </p>
         <div
           v-if="newerCall"
-          class="flex items-center justify-between gap-2 rounded-md bg-surface-gray-1 px-2 py-1.5"
+          class="flex items-center justify-between gap-2 rounded-4 bg-surface-gray-2 px-2 py-1.5"
           data-testid="ziwo-new-call"
         >
           <span class="min-w-0 truncate">
@@ -298,7 +298,7 @@
           </span>
           <button
             type="button"
-            class="shrink-0 rounded text-ink-violet-6 hover:text-ink-violet-8"
+            class="shrink-0 rounded-4 px-2 py-1 text-sm text-ink-gray-8 hover:bg-surface-gray-2"
             data-testid="ziwo-switch-call"
             @click="switchToCall(newerCall.callId)"
           >
@@ -323,7 +323,7 @@
           </div>
           <div class="flex items-center gap-3">
             <span
-              class="flex size-10 shrink-0 items-center justify-center rounded-full bg-surface-violet-2 text-xs font-medium text-ink-violet-7"
+              class="flex size-10 shrink-0 items-center justify-center rounded-full bg-surface-gray-3 text-xs font-medium text-ink-gray-8"
               aria-hidden="true"
             >
               {{ initials(callerName(focus) || focus.number) }}
@@ -342,18 +342,17 @@
             </div>
           </div>
 
-          <button
+          <Button
             v-if="answerInZiwo"
-            type="button"
-            class="flex h-11 w-full items-center justify-center rounded-xl border border-outline-gray-2 font-medium text-ink-gray-8 hover:bg-surface-gray-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-outline-gray-3"
+            class="w-full"
+            variant="outline"
+            :label="__('Answer in the ZIWO panel')"
             data-testid="ziwo-answer-in-ziwo"
             @click="showZiwo"
-          >
-            {{ __("Answer in the ZIWO panel") }}
-          </button>
+          />
           <Button
             v-else-if="endVisible"
-            class="!h-11 !w-full !rounded-xl"
+            class="w-full"
             variant="subtle"
             theme="red"
             :label="focus.ending ? __('Ending…') : __('End call')"
@@ -373,7 +372,7 @@
           <section class="space-y-2 border-t border-outline-gray-1 pt-3" data-testid="ziwo-customer">
             <div
               v-if="focus.ticket"
-              class="flex items-center justify-between gap-2 rounded-xl border border-outline-gray-2 px-3 py-2"
+              class="flex items-center justify-between gap-2 rounded-4 border border-outline-gray-2 px-3 py-2"
               data-testid="ziwo-linked-ticket"
             >
               <span class="min-w-0 truncate">
@@ -383,7 +382,7 @@
                 </template>
               </span>
               <router-link
-                class="shrink-0 rounded-full bg-surface-violet-2 px-2.5 py-1 text-p-xs font-medium text-ink-violet-7"
+                class="inline-flex h-7 shrink-0 items-center rounded-4 px-2 text-sm font-medium text-ink-gray-8 hover:bg-surface-gray-3"
                 data-testid="ziwo-open-ticket"
                 :to="{ name: 'TicketAgent', params: { ticketId: focus.ticket } }"
               >
@@ -392,7 +391,7 @@
             </div>
             <div
               v-else-if="focus.contact"
-              class="flex items-center justify-between gap-2 rounded-xl border border-outline-gray-2 px-3 py-2"
+              class="flex items-center justify-between gap-2 rounded-4 border border-outline-gray-2 px-3 py-2"
               data-testid="ziwo-linked-contact"
             >
               <span class="min-w-0 truncate">
@@ -401,7 +400,7 @@
               </span>
               <router-link
                 v-if="focus.status === 'ended' && focus.logName"
-                class="shrink-0 rounded-full bg-surface-violet-2 px-2.5 py-1 text-p-xs font-medium text-ink-violet-7"
+                class="inline-flex h-7 shrink-0 items-center rounded-4 px-2 text-sm font-medium text-ink-gray-8 hover:bg-surface-gray-3"
                 data-testid="ziwo-record-outcome"
                 :to="{ name: 'Contact', params: { id: focus.contact }, query: { call: focus.logName } }"
               >
@@ -410,7 +409,7 @@
             </div>
             <div
               v-else-if="ringPreview(focus)"
-              class="truncate rounded-xl border border-outline-gray-2 px-3 py-2 text-ink-gray-8"
+              class="truncate rounded-4 border border-outline-gray-2 px-3 py-2 text-ink-gray-8"
               data-testid="ziwo-ticket-preview"
             >
               <span class="font-medium text-ink-gray-9">#{{ ringPreview(focus)?.name }}</span>
@@ -483,7 +482,7 @@
               <form class="flex gap-2" @submit.prevent="findCallerContacts">
                 <input
                   v-model="draft.contactQuery"
-                  class="min-w-0 flex-1 rounded-xl border border-outline-gray-2 px-3 py-2"
+                  class="h-7 min-w-0 flex-1 rounded-4 border border-outline-gray-2 bg-surface-base px-2 text-base text-ink-gray-8 placeholder-ink-gray-4 transition-colors hover:border-outline-gray-3 focus:border-outline-gray-4 focus:shadow-sm focus:outline-none"
                   :placeholder="__('Name or email')"
                   :aria-label="__('Find a contact')"
                   autocomplete="off"
@@ -531,10 +530,10 @@
                 <div
                   v-for="t in ticketChoices(focus)"
                   :key="t.name"
-                  class="flex items-center justify-between gap-2 rounded-xl border px-3 py-2"
+                  class="flex items-center justify-between gap-2 rounded-4 border px-3 py-2"
                   :class="
                     draft.pending?.name === t.name
-                      ? 'border-surface-violet-4 bg-surface-violet-1'
+                      ? 'border-outline-gray-4 bg-surface-gray-2'
                       : 'border-outline-gray-2'
                   "
                 >
@@ -547,7 +546,7 @@
                     <span class="font-medium">#{{ t.name }}</span> {{ t.subject }}
                   </button>
                   <router-link
-                    class="shrink-0 text-p-xs text-ink-violet-6"
+                    class="shrink-0 text-p-xs text-ink-gray-8"
                     :to="{ name: 'TicketAgent', params: { ticketId: t.name } }"
                   >
                     {{ __("Open") }}
@@ -556,7 +555,7 @@
               </div>
               <p
                 v-else-if="!unknownCaller(focus) && (focus.panel?.call_log || focus.lookup)"
-                class="rounded-xl border border-dashed border-outline-gray-2 px-3 py-3 text-center text-ink-gray-5"
+                class="rounded-4 border border-dashed border-outline-gray-2 px-3 py-3 text-center text-ink-gray-5"
               >
                 {{ __("No open tickets for this contact.") }}
               </p>
@@ -568,7 +567,7 @@
               >
                 <input
                   v-model="draft.searchQuery"
-                  class="min-w-0 flex-1 rounded-xl border border-outline-gray-2 px-3 py-2"
+                  class="h-7 min-w-0 flex-1 rounded-4 border border-outline-gray-2 bg-surface-base px-2 text-base text-ink-gray-8 placeholder-ink-gray-4 transition-colors hover:border-outline-gray-3 focus:border-outline-gray-4 focus:shadow-sm focus:outline-none"
                   :placeholder="__('Ticket number or subject')"
                   :aria-label="__('Find a ticket')"
                   autocomplete="off"
@@ -584,20 +583,20 @@
               </form>
               <p
                 v-if="unknownCaller(focus) && draft.searchEmpty"
-                class="rounded-xl border border-dashed border-outline-gray-2 px-3 py-4 text-center text-ink-gray-6"
+                class="rounded-4 border border-dashed border-outline-gray-2 px-3 py-4 text-center text-ink-gray-6"
                 data-testid="ziwo-ticket-search-empty"
               >
                 {{ __("No matching ticket you can edit.") }}
               </p>
               <div
                 v-if="draft.pending && !focus.ticket"
-                class="space-y-2 rounded-xl bg-surface-gray-1 p-2.5"
+                class="space-y-2 rounded-4 bg-surface-gray-2 p-2.5"
                 data-testid="ziwo-link-confirm"
               >
                 <p>{{ __("Link this call to ticket #{0}?", [draft.pending.name]) }}</p>
                 <div class="flex gap-2">
                   <Button
-                    class="!h-10 flex-1 !rounded-xl !bg-surface-violet-6 !text-ink-violet-1 hover:!bg-surface-violet-7"
+                    class="flex-1"
                     variant="solid"
                     :label="__('Link ticket')"
                     :loading="draft.linking"
@@ -605,7 +604,6 @@
                     @click="linkTicket"
                   />
                   <Button
-                    class="!h-10"
                     variant="ghost"
                     :label="__('Cancel')"
                     @click="draft.pending = null"
@@ -613,7 +611,7 @@
                 </div>
               </div>
               <Button
-                class="!h-10 !w-full !rounded-xl"
+                class="w-full"
                 variant="outline"
                 theme="gray"
                 :label="__('Create ticket')"
@@ -632,7 +630,7 @@
                 <input
                   v-if="unknownCaller(focus)"
                   v-model="draft.callerName"
-                  class="w-full rounded border border-outline-gray-2 px-2 py-1"
+                  class="h-7 w-full rounded-4 border border-outline-gray-2 bg-surface-base px-2 text-base text-ink-gray-8 placeholder-ink-gray-4 transition-colors hover:border-outline-gray-3 focus:border-outline-gray-4 focus:shadow-sm focus:outline-none"
                   :placeholder="__('Caller name (optional)')"
                   :aria-label="__('Caller name (optional)')"
                   maxlength="140"
@@ -640,7 +638,7 @@
                 />
                 <input
                   v-model="draft.subject"
-                  class="w-full rounded border border-outline-gray-2 px-2 py-1"
+                  class="h-7 w-full rounded-4 border border-outline-gray-2 bg-surface-base px-2 text-base text-ink-gray-8 placeholder-ink-gray-4 transition-colors hover:border-outline-gray-3 focus:border-outline-gray-4 focus:shadow-sm focus:outline-none"
                   :placeholder="__('Subject')"
                   :aria-label="__('Subject')"
                   maxlength="140"
@@ -649,7 +647,7 @@
                 />
                 <textarea
                   v-model="draft.summary"
-                  class="w-full rounded border border-outline-gray-2 px-2 py-1"
+                  class="h-7 w-full rounded-4 border border-outline-gray-2 bg-surface-base px-2 text-base text-ink-gray-8 placeholder-ink-gray-4 transition-colors hover:border-outline-gray-3 focus:border-outline-gray-4 focus:shadow-sm focus:outline-none"
                   rows="3"
                   :placeholder="__('Short summary of the issue')"
                   :aria-label="__('Short summary of the issue')"
@@ -665,7 +663,7 @@
                   <select
                     v-if="field.fieldtype === 'Select'"
                     v-model="draft.fields[field.fieldname]"
-                    class="w-full rounded border border-outline-gray-2 px-2 py-1"
+                    class="h-7 w-full rounded-4 border border-outline-gray-2 bg-surface-base px-2 text-base text-ink-gray-8 placeholder-ink-gray-4 transition-colors hover:border-outline-gray-3 focus:border-outline-gray-4 focus:shadow-sm focus:outline-none"
                     :aria-label="field.label"
                     :data-testid="`ziwo-create-field-${field.fieldname}`"
                   >
@@ -681,7 +679,7 @@
                   <input
                     v-else
                     v-model="draft.fields[field.fieldname]"
-                    class="w-full rounded border border-outline-gray-2 px-2 py-1"
+                    class="h-7 w-full rounded-4 border border-outline-gray-2 bg-surface-base px-2 text-base text-ink-gray-8 placeholder-ink-gray-4 transition-colors hover:border-outline-gray-3 focus:border-outline-gray-4 focus:shadow-sm focus:outline-none"
                     :aria-label="field.label"
                     :data-testid="`ziwo-create-field-${field.fieldname}`"
                   />
@@ -721,10 +719,10 @@
             >
               <span
                 v-if="focusBadge && focusBadge.kind !== 'observed'"
-                class="inline-flex items-center rounded-md px-2 py-1 text-p-xs"
+                class="inline-flex items-center rounded-4 px-2 py-0.5 text-p-xs"
                 :class="
                   focusBadge.kind === 'confirmed'
-                    ? 'bg-surface-green-2 text-ink-green-3'
+                    ? 'bg-surface-green-2 text-ink-green-7'
                     : 'bg-surface-gray-2 text-ink-gray-7'
                 "
                 :data-testid="
@@ -741,7 +739,7 @@
               />
               <router-link
                 v-if="focus.ticket && focus.logName && outcomeContact(focus)"
-                class="rounded-full bg-surface-violet-2 px-2.5 py-1 text-p-xs font-medium text-ink-violet-7"
+                class="inline-flex h-7 shrink-0 items-center rounded-4 px-2 text-sm font-medium text-ink-gray-8 hover:bg-surface-gray-3"
                 data-testid="ziwo-ticket-record-outcome"
                 :to="{ name: 'Contact', params: { id: outcomeContact(focus) }, query: { call: focus.logName } }"
               >
@@ -761,7 +759,7 @@
               <textarea
                 id="ziwo-internal-note"
                 v-model="draft.note"
-                class="w-full rounded border border-outline-gray-2 px-2 py-1"
+                class="block min-h-20 w-full resize-y rounded-4 border border-outline-gray-2 bg-surface-base px-2 py-1.5 text-p-sm text-ink-gray-8 placeholder-ink-gray-4 transition-colors hover:border-outline-gray-3 focus:border-outline-gray-4 focus:shadow-sm focus:outline-none focus:ring-0"
                 rows="3"
                 :placeholder="__('Add a note...')"
                 :aria-label="__('Internal note')"
@@ -773,11 +771,6 @@
                   type="submit"
                   variant="solid"
                   size="sm"
-                  :class="
-                    draft.note.trim() && !draft.savingNote
-                      ? '!bg-surface-violet-6 !text-ink-violet-1 hover:!bg-surface-violet-7'
-                      : ''
-                  "
                   :label="__('Save note')"
                   :loading="draft.savingNote"
                   :disabled="draft.savingNote || !draft.note.trim()"
@@ -798,7 +791,7 @@
         <details
           v-if="showDetails"
           open
-          class="rounded-lg bg-surface-gray-1 p-2.5 text-p-xs text-ink-gray-6"
+          class="rounded-4 bg-surface-gray-2 p-2.5 text-p-xs text-ink-gray-6"
           data-testid="ziwo-diagnostics"
           @toggle="onDetailsToggle"
         >
@@ -861,15 +854,13 @@
       </div>
 
       <div class="shrink-0 border-t border-outline-gray-1 px-3 pb-2 pt-2 text-center">
-        <button
-          type="button"
-          class="text-p-xs text-ink-violet-6 hover:text-ink-violet-8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-outline-gray-3 disabled:cursor-not-allowed disabled:text-ink-gray-4"
+        <Button
+          variant="ghost"
+          :label="__('Open ZIWO panel')"
           data-testid="ziwo-show-vendor"
           :disabled="!canShowVendor"
           @click="showZiwo"
-        >
-          {{ __("Open ZIWO panel") }}
-        </button>
+        />
       </div>
     </section>
     <ContactCallOutcomeDialog

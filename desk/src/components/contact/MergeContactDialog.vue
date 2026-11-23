@@ -17,7 +17,7 @@
       />
       <ul
         v-if="choices.length"
-        class="divide-y divide-outline-gray-1 rounded border border-outline-gray-2"
+        class="divide-y divide-outline-gray-1 rounded-4 border border-outline-gray-1"
       >
         <li v-for="row in choices" :key="row.name">
           <button

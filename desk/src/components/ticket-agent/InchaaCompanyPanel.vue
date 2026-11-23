@@ -14,33 +14,30 @@
           {{ __("Customer on this ticket: {0}", [state.customer]) }}
         </p>
         <form class="space-y-2" data-testid="inchaa-company-lookup-form" @submit.prevent="lookup">
-          <label class="block">
-            {{ __("Inchaa user ID") }}
-            <input
-              v-model="form.userId"
-              class="mt-1 w-full rounded border border-outline-gray-2 px-2 py-1"
-              data-testid="inchaa-company-user"
-              autocomplete="off"
-            />
-          </label>
-          <label class="block">
-            {{ __("Email") }}
-            <input
-              v-model="form.email"
-              class="mt-1 w-full rounded border border-outline-gray-2 px-2 py-1"
-              data-testid="inchaa-company-email"
-              autocomplete="off"
-            />
-          </label>
-          <label class="block">
-            {{ __("Phone") }}
-            <input
-              v-model="form.phone"
-              class="mt-1 w-full rounded border border-outline-gray-2 px-2 py-1"
-              data-testid="inchaa-company-phone"
-              autocomplete="off"
-            />
-          </label>
+          <FormControl
+            v-model="form.userId"
+            type="text"
+            variant="outline"
+            :label="__('Inchaa user ID')"
+            data-testid="inchaa-company-user"
+            autocomplete="off"
+          />
+          <FormControl
+            v-model="form.email"
+            type="text"
+            variant="outline"
+            :label="__('Email')"
+            data-testid="inchaa-company-email"
+            autocomplete="off"
+          />
+          <FormControl
+            v-model="form.phone"
+            type="text"
+            variant="outline"
+            :label="__('Phone')"
+            data-testid="inchaa-company-phone"
+            autocomplete="off"
+          />
           <Button
             size="sm"
             :label="__('Look up')"
@@ -74,15 +71,13 @@
           <p class="text-ink-gray-6">
             {{ __("A lookup does not link this ticket. Linking checks Inchaa again.") }}
           </p>
-          <label v-if="preview.linkable" class="flex items-start gap-2">
-            <input
-              v-model="confirmed"
-              type="checkbox"
-              class="mt-0.5"
-              data-testid="inchaa-company-confirm"
-            />
-            <span>{{ __("I confirmed this sender is this Inchaa account.") }}</span>
-          </label>
+          <FormControl
+            v-if="preview.linkable"
+            v-model="confirmed"
+            type="checkbox"
+            :label="__('I confirmed this sender is this Inchaa account.')"
+            data-testid="inchaa-company-confirm"
+          />
           <Button
             variant="solid"
             size="sm"
@@ -105,7 +100,7 @@
 import { reloadTicket } from "@/composables/useTicket";
 import { __ } from "@/translation";
 import { TicketSymbol } from "@/types";
-import { Button, call } from "frappe-ui";
+import { Button, FormControl, call } from "frappe-ui";
 import { computed, inject, reactive, ref, watch } from "vue";
 import Section from "../Section.vue";
 

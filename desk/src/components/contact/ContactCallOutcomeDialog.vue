@@ -42,7 +42,7 @@
           v-model="form.due_at"
           type="datetime-local"
           :required="form.disposition === 'Call back'"
-          class="mt-1 block w-full rounded border border-outline-gray-2 bg-surface-gray-2 px-2 py-1.5 text-base text-ink-gray-9"
+          class="mt-1 block h-7 w-full rounded-4 border border-[--surface-gray-2] bg-surface-gray-2 px-2 py-1.5 text-base text-ink-gray-8 transition-colors hover:border-outline-elevation-2 hover:bg-surface-gray-3 focus:border-outline-gray-4 focus:bg-surface-base focus:shadow-sm focus:outline-none focus:ring-0"
         />
       </label>
       <div

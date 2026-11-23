@@ -64,36 +64,26 @@
         data-testid="inchaa-admin-create"
         @submit.prevent="createTask"
       >
-        <label class="block">
-          {{ __("Category") }}
-          <select
-            v-model="form.category"
-            class="mt-1 w-full rounded border border-outline-gray-2 bg-surface-white px-2 py-1"
-          >
-            <option v-for="item in panel.categories" :key="item" :value="item">
-              {{ item }}
-            </option>
-          </select>
-        </label>
-        <label class="block">
-          {{ __("Priority") }}
-          <select
-            v-model="form.priority"
-            class="mt-1 w-full rounded border border-outline-gray-2 bg-surface-white px-2 py-1"
-          >
-            <option v-for="item in panel.priorities" :key="item" :value="item">
-              {{ item }}
-            </option>
-          </select>
-        </label>
-        <label class="block">
-          {{ __("Description") }}
-          <textarea
-            v-model="form.description"
-            rows="3"
-            class="mt-1 w-full rounded border border-outline-gray-2 px-2 py-1"
-          />
-        </label>
+        <FormControl
+          v-model="form.category"
+          type="select"
+          variant="outline"
+          :label="__('Category')"
+          :options="choiceOptions(panel.categories)"
+        />
+        <FormControl
+          v-model="form.priority"
+          type="select"
+          variant="outline"
+          :label="__('Priority')"
+          :options="choiceOptions(panel.priorities)"
+        />
+        <FormControl
+          v-model="form.description"
+          type="textarea"
+          variant="outline"
+          :label="__('Description')"
+        />
         <Button
           variant="solid"
           size="sm"
@@ -111,7 +101,7 @@
 <script setup lang="ts">
 import { __ } from "@/translation";
 import { TicketSymbol } from "@/types";
-import { Button, call } from "frappe-ui";
+import { Button, FormControl, call } from "frappe-ui";
 import { computed, inject, reactive, ref, watch } from "vue";
 import Section from "../Section.vue";
 
@@ -145,6 +135,10 @@ const panel = ref<Panel | null>(null);
 const busy = ref(false);
 const error = ref("");
 const opened = ref(true);
+function choiceOptions(items?: string[]) {
+  return (items || []).map((item) => ({ label: item, value: item }));
+}
+
 const form = reactive({
   category: "Incident",
   priority: "Normal",
