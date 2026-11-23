@@ -142,6 +142,12 @@
       "
       :on-delete="handleDelete"
     />
+    <MergeContactDialog
+      v-if="isManager"
+      v-model:open="showMergeDialog"
+      :source="id"
+      :source-label="contact.doc?.full_name || id"
+    />
     <EditContactDialog
       v-if="showEditDialog"
       v-model="showEditDialog"
@@ -175,6 +181,8 @@ import TicketFeedbackIcon from "@/components/icons/TicketFeedbackIcon.vue";
 import TicketHashIcon from "@/components/icons/TicketHashIcon.vue";
 //@ts-ignore
 import EditContactDialog from "@/components/contact/EditContactDialog.vue";
+import MergeContactDialog from "@/components/contact/MergeContactDialog.vue";
+import { useAuthStore } from "@/stores/auth";
 import LayoutHeader from "@/components/LayoutHeader.vue";
 import PageInfo from "@/components/PageInfo.vue";
 import {
@@ -260,6 +268,8 @@ const outreach = createResource({
   auto: true,
 });
 const outcomeOpen = ref(false);
+const { isManager } = useAuthStore();
+const showMergeDialog = ref(false);
 const outcomeCall = ref<any>(null);
 
 // The softphone saves call events while this page is open. Each save changes this Contact's
@@ -434,6 +444,17 @@ const dropdownActions = computed(() => {
       group: __("Danger"),
       hideLabel: true,
       options: [
+        ...(isManager
+          ? [
+              {
+                label: __("Merge into another contact"),
+                icon: "lucide-git-merge",
+                onClick: () => {
+                  showMergeDialog.value = true;
+                },
+              },
+            ]
+          : []),
         {
           label: __("Delete"),
           icon: LucideTrash2,

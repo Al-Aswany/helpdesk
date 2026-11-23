@@ -32,8 +32,24 @@ def new(doc: dict, attachments: list[dict] = []):
     doc["via_customer_portal"] = bool(frappe.session.user)
     doc["attachments"] = attachments
     doc["raised_by"] = frappe.session.user
+    if is_agent():
+        doc["raised_by"] = _requester_for_agent_ticket(doc.get("contact"))
     d = frappe.get_doc(doc).insert()
     return d
+
+
+def _requester_for_agent_ticket(contact: str | None) -> str:
+    """An agent writes on a customer's behalf, so the customer is the requester.
+
+    A customer without an email keeps the agent as raised_by; the contact still
+    identifies them.
+    """
+    if not contact:
+        frappe.throw(_("Choose the customer this ticket is for."), frappe.ValidationError)
+    if not frappe.db.exists("Contact", contact):
+        frappe.throw(_("Contact not found."), frappe.DoesNotExistError)
+    frappe.has_permission("Contact", "read", doc=contact, throw=True)
+    return frappe.db.get_value("Contact", contact, "email_id") or frappe.session.user
 
 
 @frappe.whitelist()

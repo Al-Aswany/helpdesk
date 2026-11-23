@@ -15,6 +15,7 @@
     <div
       class="flex flex-col gap-5 py-6 h-full flex-1 self-center overflow-auto mx-auto w-full max-w-4xl px-5"
     >
+      <TicketContactPicker v-if="!isCustomerPortal" v-model="contact" />
       <!-- custom fields descriptions -->
       <div v-if="Boolean(template.data?.about)" class="">
         <div class="prose-f" v-html="sanitize(template.data.about)" />
@@ -180,6 +181,7 @@ import sanitizeHtml from "sanitize-html";
 import { computed, defineAsyncComponent, onMounted, reactive, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import SearchArticles from "../../components/SearchArticles.vue";
+import TicketContactPicker from "../../components/ticket/TicketContactPicker.vue";
 const TicketTextEditor = defineAsyncComponent(
   () => import("./TicketTextEditor.vue")
 );
@@ -204,12 +206,15 @@ const { isUploading, track } = useUploadTracker();
 const canSubmit = computed(
   () =>
     Boolean(subject.value) &&
+    (isCustomerPortal.value || Boolean(contact.value)) &&
     !isContentEmpty(description.value) &&
     !ticket.loading &&
     !isUploading.value
 );
 
 const subject = ref(String(route.query.subject ?? ""));
+// An agent writes on a customer's behalf; the portal sets the customer itself.
+const contact = ref("");
 const description = ref("");
 const attachments = ref([]);
 const templateFields = reactive({});
@@ -288,10 +293,14 @@ const ticket = createResource({
       subject: subject.value,
       template: props.templateId,
       ...templateFields,
+      ...(isCustomerPortal.value ? {} : { contact: contact.value }),
     },
     attachments: attachments.value,
   }),
   validate: (params) => {
+    if (!isCustomerPortal.value && !params.doc.contact) {
+      return __("Choose the customer this ticket is for.");
+    }
     const fields = visibleFields.value?.filter((f) => f.required) || [];
     const toVerify = [...fields, "subject", "description"];
     for (const field of toVerify) {
