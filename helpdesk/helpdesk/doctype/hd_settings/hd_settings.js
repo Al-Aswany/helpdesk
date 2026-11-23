@@ -5,9 +5,9 @@ frappe.ui.form.on("HD Settings", {
   refresh: function (frm) {
     frm.add_custom_button(__("Regenerate Search Index"), () => {
       frappe.call({
-        method: "helpdesk.search.build_index",
+        method: "helpdesk.search_sqlite.rebuild_indexes",
         callback: function (r) {
-          frappe.msgprint(__("Search Index Regenerated"));
+          frappe.msgprint(__("Search indexes are being rebuilt in the background."));
         },
       });
     });

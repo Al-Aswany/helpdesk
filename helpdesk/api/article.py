@@ -2,37 +2,19 @@ import re
 
 import frappe
 from frappe import _
-from textblob import TextBlob
-from textblob.exceptions import MissingCorpusError
+from frappe.utils import escape_html
 
-from helpdesk.search import NUM_RESULTS
-from helpdesk.search import search as hd_search
+from helpdesk.search_sqlite import HelpdeskArticleSearch
 from helpdesk.utils import is_agent
 
-
-def get_nouns(blob: TextBlob):
-    try:
-        return [word for word, pos in blob.pos_tags if pos[0] == "N"]
-    except LookupError:
-        return []
-
-
-def get_noun_phrases(blob: TextBlob):
-    try:
-        return blob.noun_phrases
-    except (LookupError, MissingCorpusError):
-        return []
-
-
-def search_with_enough_results(
-    prev_res: list, query: str, qtype="and"
-) -> tuple[list, bool]:
-    out = hd_search(query, qtype=qtype)
-    if not out:
-        return prev_res, len(prev_res) == NUM_RESULTS
-    items = prev_res + filter_public_articles(out[0].get("items", []))
-    items = list({v["id"]: v for v in items}.values())[:NUM_RESULTS]  # unique results
-    return items, len(items) == NUM_RESULTS
+NUM_RESULTS = 5
+SNIPPET_CHARS = 200
+# Shorter words match too much when any one word is enough.
+MIN_ANY_WORD_LENGTH = 3
+# Arabic short vowels and tatweel, which customers type inconsistently.
+ARABIC_MARKS = re.compile(r"[\u064B-\u0652\u0640]")
+# The search adds <mark> around matches; the text is escaped, so they are dropped.
+HIGHLIGHT = re.compile(r"</?mark>")
 
 
 def filter_public_articles(articles: list) -> list:
@@ -51,11 +33,9 @@ def filter_public_articles(articles: list) -> list:
 
 
 def sanitize_query(query: str) -> str:
-    q = query.strip().lower()
-    q = re.sub(r"[^a-z0-9\s]", " ", q)
-    # Collapse multiple spaces into one
-    q = re.sub(r"\s+", " ", q)
-    return q.strip()
+    """Letters and digits of any script, lower-cased, single-spaced."""
+    q = ARABIC_MARKS.sub("", (query or "").strip().lower())
+    return " ".join(re.findall(r"\w+", q))
 
 
 @frappe.whitelist()
@@ -89,25 +69,38 @@ def get_article_stats(article_name: str):
     }
 
 
+def _hits(query: str, any_word: bool) -> list[dict]:
+    index = HelpdeskArticleSearch(any_word=any_word)
+    if not index.index_exists():
+        return []
+    return [
+        {
+            "id": row["id"],
+            "name": row["name"],
+            "subject": HIGHLIGHT.sub("", row.get("title") or "") or row["name"],
+            "headings": "",
+            "description": escape_html(
+                HIGHLIGHT.sub("", row.get("content") or "")[:SNIPPET_CHARS]
+            ),
+        }
+        for row in index.search(query)["results"]
+    ]
+
+
 @frappe.whitelist()
 def search(query: str) -> list:
+    """Published articles for a ticket being written: every word first, then any word."""
     query = sanitize_query(query)
-    ret, enough = search_with_enough_results([], query)
-    if enough:
-        return ret
-    blob = TextBlob(query)  # fallback
-    if noun_phrases := get_noun_phrases(blob):
-        query = " ".join(noun_phrases)
-        ret, enough = search_with_enough_results(ret, query)
-        if enough:
-            return ret
-        ret, enough = search_with_enough_results(ret, query, qtype="or")
-        if enough:
-            return ret
-    if nouns := get_nouns(blob):
-        query = " ".join(nouns)
-        ret, enough = search_with_enough_results(ret, query)
-        if enough:
-            return ret
-        ret, enough = search_with_enough_results(ret, query, qtype="or")
-    return ret
+    if not query:
+        return []
+    found = filter_public_articles(_hits(query, any_word=False))
+    if len(found) < NUM_RESULTS:
+        loose = " ".join(w for w in query.split() if len(w) >= MIN_ANY_WORD_LENGTH)
+        if loose:
+            seen = {hit["name"] for hit in found}
+            found += [
+                hit
+                for hit in filter_public_articles(_hits(loose, any_word=True))
+                if hit["name"] not in seen
+            ]
+    return found[:NUM_RESULTS]

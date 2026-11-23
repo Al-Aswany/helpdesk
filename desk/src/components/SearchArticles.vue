@@ -31,12 +31,14 @@
             params: {
               articleId: a.name.split('#')[0],
             },
-            hash: `#${a.name.split('#')[1]}`,
+            hash: a.name.includes('#') ? `#${a.name.split('#')[1]}` : '',
           }"
           @click="handleSearchArticleClick(a)"
           target="_blank"
         >
-          <dt class="font-base">{{ a.subject }} - {{ a.headings }}</dt>
+          <dt class="font-base">
+            {{ a.subject }}<template v-if="a.headings"> - {{ a.headings }}</template>
+          </dt>
           <!-- eslint-disable-next-line vue/no-v-html -->
           <dd
             class="font-base text-p-sm text-ink-gray-5 line-clamp-1"

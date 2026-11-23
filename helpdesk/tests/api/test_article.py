@@ -3,16 +3,14 @@ from unittest.mock import patch
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
-from helpdesk.api.article import get_article_stats, search
-from helpdesk.search import NUM_RESULTS
+from helpdesk.api.article import NUM_RESULTS, get_article_stats, search
+from helpdesk.search_sqlite import HelpdeskArticleSearch
 from helpdesk.test_utils import (
     create_agent,
     create_contact,
     make_agent_manager,
     make_article,
     make_article_feedback,
-    make_search_hit,
-    make_search_page,
     unique_email,
 )
 
@@ -71,54 +69,97 @@ class TestGetArticleStats(FrappeTestCase):
             get_article_stats(self.draft)
 
 
-@patch("helpdesk.api.article.get_nouns", return_value=[])
-@patch("helpdesk.api.article.get_noun_phrases", return_value=["password reset"])
-@patch("helpdesk.api.article.hd_search")
+def make_titled_article(title: str, content: str, status: str = "Published") -> str:
+    return (
+        frappe.get_doc(
+            {
+                "doctype": "HD Article",
+                "title": title,
+                "content": content,
+                "status": status,
+            }
+        )
+        .insert(ignore_permissions=True)
+        .name
+    )
+
+
 class TestSearchArticles(FrappeTestCase):
+    """Runs against a real SQLite index in its own file, dropped after each test."""
+
     def setUp(self) -> None:
         frappe.set_user("Administrator")
-        self.articles = [make_article() for _ in range(NUM_RESULTS + 1)]
+        index = patch.object(
+            HelpdeskArticleSearch,
+            "INDEX_NAME",
+            f"test-article-search-{frappe.generate_hash(length=8)}.db",
+        )
+        index.start()
+        self.addCleanup(index.stop)
+        self.addCleanup(lambda: HelpdeskArticleSearch().drop_index())
 
-    def test_full_first_page_is_returned_without_fallback(self, hd_search, *_) -> None:
-        hits = [make_search_hit(article) for article in self.articles[:NUM_RESULTS]]
-        hd_search.return_value = make_search_page(*hits)
+    def build(self) -> None:
+        HelpdeskArticleSearch().build_index()
+
+    def test_every_word_matches_before_any_word(self) -> None:
+        exact = make_titled_article("Reset your password", "<p>Open settings and reset the password.</p>")
+        loose = make_titled_article("Password rules", "<p>Use twelve characters.</p>")
+        self.build()
 
         result = search("  How do I RESET my password?! ")
 
-        self.assertEqual(result, hits)
-        hd_search.assert_called_once_with("how do i reset my password", qtype="and")
+        names = [hit["name"] for hit in result]
+        self.assertEqual(names[0], exact)
+        self.assertIn(loose, names)
+        self.assertEqual(result[0]["subject"], "Reset your password")
+        self.assertEqual(result[0]["headings"], "")
 
-    def test_fallback_merges_unique_hits_up_to_the_limit(self, hd_search, *_) -> None:
-        first, second, *rest = [make_search_hit(article) for article in self.articles]
-        hd_search.side_effect = [
-            make_search_page(first, second),
-            make_search_page(second, *rest),
-        ]
+    def test_an_arabic_question_finds_an_arabic_article(self) -> None:
+        article = make_titled_article(
+            "إعادة تعيين كلمة المرور", "<p>افتح الإعدادات ثم اضغط إعادة تعيين كلمة المرور.</p>"
+        )
+        self.build()
 
-        result = search("reset my password")
+        self.assertEqual([hit["name"] for hit in search("كيف أُعيد تعيين كلمة المرور؟")], [article])
 
-        self.assertEqual(result, [first, second, *rest][:NUM_RESULTS])
-        hd_search.assert_called_with("password reset", qtype="and")
+    def test_results_stop_at_the_limit(self) -> None:
+        for i in range(NUM_RESULTS + 2):
+            make_titled_article(f"Invoice question {i}", "<p>Invoices are sent monthly.</p>")
+        self.build()
 
-    def test_no_match_returns_empty_list(self, hd_search, *_) -> None:
-        hd_search.return_value = []
+        self.assertEqual(len(search("invoice")), NUM_RESULTS)
+
+    def test_no_match_returns_empty_list(self) -> None:
+        make_titled_article("Reset your password", "<p>Open settings.</p>")
+        self.build()
 
         self.assertEqual(search("nothing matches this"), [])
-        self.assertEqual(hd_search.call_count, 3)
+        self.assertEqual(search("?!"), [])
 
-    def test_customer_never_sees_unpublished_article_from_stale_index(
-        self, hd_search, *_
-    ) -> None:
-        published = make_search_hit(self.articles[0])
-        stale = [
-            make_search_hit(make_article(status="Draft")),
-            make_search_hit(make_article(status="Archived")),
-            make_search_hit("deleted-article"),
-        ]
-        hd_search.return_value = make_search_page(published, *stale)
+    def test_a_missing_index_returns_empty_list(self) -> None:
+        make_titled_article("Reset your password", "<p>Open settings.</p>")
+
+        self.assertEqual(search("password"), [])
+
+    def test_customer_never_sees_an_unpublished_article(self) -> None:
+        published = make_titled_article("Refund policy", "<p>Refunds take five days.</p>")
+        make_titled_article("Refund draft", "<p>Refunds draft.</p>", status="Draft")
+        archived = make_titled_article("Refund archived", "<p>Refunds archived.</p>")
+        self.build()
+        frappe.db.set_value("HD Article", archived, "status", "Archived")
         customer = create_contact("Article Customer", unique_email("article-customer"))
 
         with self.set_user(customer["user"]):
-            result = search("reset password")
+            result = search("refund")
 
-        self.assertEqual(result, [published])
+        self.assertEqual([hit["name"] for hit in result], [published])
+
+    def test_article_text_is_escaped_in_the_snippet(self) -> None:
+        make_titled_article("Script note", "<p>Type &lt;script&gt;alert(1)&lt;/script&gt; nowhere.</p>")
+        self.build()
+
+        hit = search("script")[0]
+
+        self.assertNotIn("<script>", hit["description"])
+        self.assertIn("&lt;script&gt;", hit["description"])
+        self.assertNotIn("mark", hit["description"] + hit["subject"])

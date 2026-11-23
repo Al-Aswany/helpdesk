@@ -22,21 +22,18 @@ add_to_apps_screen = [
 get_site_info = "helpdesk.activation.get_site_info"
 
 after_install = "helpdesk.setup.install.after_install"
-after_migrate = [
-    "helpdesk.search.build_index_in_background",
-    "helpdesk.search.download_corpus",
-]
+after_migrate = []
 
 # Full Text Search
 # ------------------
 
-sqlite_search = ["helpdesk.search_sqlite.HelpdeskSearch"]
+# The ticket index first: Frappe stops updating later indexes when an earlier one is missing.
+sqlite_search = [
+    "helpdesk.search_sqlite.HelpdeskSearch",
+    "helpdesk.search_sqlite.HelpdeskArticleSearch",
+]
 
 scheduler_events = {
-    "all": [
-        "helpdesk.search.build_index_if_not_exists",
-        "helpdesk.search.download_corpus",
-    ],
     "daily": [
         "helpdesk.helpdesk.doctype.hd_ticket.hd_ticket.close_tickets_after_n_days"
     ],

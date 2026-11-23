@@ -241,7 +241,49 @@ class HelpdeskSearch(SQLiteSearch):
         }
 
 
+class HelpdeskArticleSearch(SQLiteSearch):
+    """Knowledge Base articles, for the suggestions shown while a ticket is written.
+
+    Every article is indexed whatever its status. Callers keep only Published ones,
+    so an unpublished article drops out before its index row is refreshed.
+    """
+
+    INDEX_NAME = "helpdesk_article_search.db"
+    INDEX_SCHEMA = {"metadata_fields": ["status"]}
+    INDEXABLE_DOCTYPES = {
+        "HD Article": {"fields": ["name", "title", "content", "modified", "status"]},
+    }
+
+    def __init__(self, any_word: bool = False):
+        super().__init__()
+        self.any_word = any_word
+
+    def get_search_filters(self) -> dict:
+        return {}
+
+    def _prepare_fts_query(self, query):
+        fts_query = super()._prepare_fts_query(query)
+        if self.any_word and fts_query:
+            return " OR ".join(fts_query.split(" "))
+        return fts_query
+
+
 def build_index():
     """Build search index - can be called from console."""
     search = HelpdeskSearch()
     search.build_index()
+
+
+@frappe.whitelist(methods=["POST"])
+def rebuild_indexes() -> None:
+    """Rebuild every Helpdesk search index in the background."""
+    frappe.only_for("System Manager")
+    for path in frappe.get_hooks("sqlite_search"):
+        frappe.enqueue(
+            "frappe.search.sqlite_search.build_index",
+            queue="long",
+            job_id=f"rebuild:{path}",
+            deduplicate=True,
+            search_class_path=path,
+            force=True,
+        )
