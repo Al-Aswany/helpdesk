@@ -219,6 +219,7 @@ function controllerFor(entry: Entry, key: string): ReplyController {
         template: args.template || undefined,
         language: args.language || undefined,
         parameters: args.parameters || undefined,
+        wait_for_customer: args.waitForCustomer ? 1 : 0,
       }) as Promise<SendResult>,
     refresh: () => refresh(entry),
     newId: uuid,
@@ -241,13 +242,17 @@ export interface TicketChannel {
   reply: ComputedRef<ReplySnapshot>;
   shouldPoll: ComputedRef<boolean>;
   setDraft(text: string): void;
-  submit(): Promise<SubmitOutcome>;
+  submit(options?: { waitForCustomer?: boolean }): Promise<SubmitOutcome>;
   submitTemplate(
     template: string,
     language: string,
     parameters: string[]
   ): Promise<SubmitOutcome>;
-  submitFile(file: string, caption: string): Promise<SubmitOutcome>;
+  submitFile(
+    file: string,
+    caption: string,
+    options?: { waitForCustomer?: boolean }
+  ): Promise<SubmitOutcome>;
   discardDraft(): Promise<void>;
   discardPending(): Promise<void>;
   restorePendingText(): void;
@@ -331,9 +336,9 @@ export function useTicketChannel(
     reply,
     shouldPoll: pollWanted,
     setDraft: (text) => requireController().setDraft(text),
-    submit: () => {
+    submit: (options?: { waitForCustomer?: boolean }) => {
       const current = entry.value;
-      const outcome = requireController().submit();
+      const outcome = requireController().submit(options);
       startAfterSubmit(current);
       return outcome;
     },
@@ -351,9 +356,13 @@ export function useTicketChannel(
       startAfterSubmit(current);
       return outcome;
     },
-    submitFile: (file: string, caption: string) => {
+    submitFile: (
+      file: string,
+      caption: string,
+      options?: { waitForCustomer?: boolean }
+    ) => {
       const current = entry.value;
-      const outcome = requireController().submitFile(file, caption);
+      const outcome = requireController().submitFile(file, caption, options);
       startAfterSubmit(current);
       return outcome;
     },

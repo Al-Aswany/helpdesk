@@ -192,6 +192,14 @@
           </div>
           <div class="flex shrink-0 items-center justify-end gap-x-2">
             <Button label="Discard" @click="handleDiscard" />
+            <Button
+              variant="subtle"
+              :disabled="isDisabled"
+              :loading="sendMail.loading"
+              :label="__('Reply and wait for customer')"
+              data-testid="reply-and-wait"
+              @click="submitMail(true)"
+            />
             <!-- A disabled button fires no pointer events, so the span
                  carries the hover for the tooltip -->
             <Tooltip
@@ -203,11 +211,8 @@
                   :disabled="isDisabled"
                   :loading="sendMail.loading"
                   :label="label"
-                  @click="
-                    () => {
-                      submitMail();
-                    }
-                  "
+                  data-testid="reply-send"
+                  @click="submitMail(false)"
                 />
               </span>
             </Tooltip>
@@ -521,7 +526,7 @@ const isDisabled = computed(
     isUploading.value
 );
 
-function submitMail() {
+function submitMail(waitForCustomer = false) {
   if (isContentEmpty(newEmail.value) && isContentEmpty(quotedContent.value)) {
     return false;
   }
@@ -588,6 +593,7 @@ function submitMail() {
       cc: ccEmailsClone.value?.join(","),
       bcc: bccEmailsClone.value?.join(","),
       message,
+      wait_for_customer: waitForCustomer ? 1 : 0,
     },
   };
 

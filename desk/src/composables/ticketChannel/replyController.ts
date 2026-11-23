@@ -30,6 +30,7 @@ export interface PendingRequest {
   template?: string | null;
   language?: string | null;
   parameters?: string[] | null;
+  waitForCustomer?: boolean;
 }
 
 export interface StoredReply {
@@ -76,6 +77,7 @@ export interface ReplyDeps {
     template?: string | null;
     language?: string | null;
     parameters?: string[] | null;
+    waitForCustomer?: boolean;
   }): Promise<SendResult>;
   /** Read-only: the current outbound rows, or null when they could not be read. */
   refresh(): Promise<OutboundRow[] | null>;
@@ -193,11 +195,16 @@ export class ReplyController {
     this.changed();
   }
 
-  submit(): Promise<SubmitOutcome> {
+  submit(options?: { waitForCustomer?: boolean }): Promise<SubmitOutcome> {
     if (this.pending?.file) {
-      return this.submitPrepared(this.draft, { file: this.pending.file }, true);
+      return this.submitPrepared(
+        this.draft,
+        { file: this.pending.file },
+        true,
+        options
+      );
     }
-    return this.submitPrepared(this.draft, {});
+    return this.submitPrepared(this.draft, {}, false, options);
   }
 
   /** Explicit template send. Does not invent a template when the list is empty. */
@@ -214,8 +221,12 @@ export class ReplyController {
    * Queue one media reply. `caption` is the agent's text and may be empty.
    * `file` is the uploaded File name; it is never copied into the caption.
    */
-  submitFile(file: string, caption: string): Promise<SubmitOutcome> {
-    return this.submitPrepared(caption, { file }, true);
+  submitFile(
+    file: string,
+    caption: string,
+    options?: { waitForCustomer?: boolean }
+  ): Promise<SubmitOutcome> {
+    return this.submitPrepared(caption, { file }, true, options);
   }
 
   private submitPrepared(
@@ -226,7 +237,8 @@ export class ReplyController {
       language?: string;
       parameters?: string[];
     },
-    allowEmpty = false
+    allowEmpty = false,
+    options?: { waitForCustomer?: boolean }
   ): Promise<SubmitOutcome> {
     if (this.inFlight) return this.inFlight;
     if (this.pending && this.pending.message !== text) {
@@ -252,6 +264,7 @@ export class ReplyController {
         template: extra.template ?? null,
         language: extra.language ?? null,
         parameters: extra.parameters ?? null,
+        waitForCustomer: Boolean(options?.waitForCustomer),
       };
     }
     this.phase = "sending";
@@ -324,6 +337,7 @@ export class ReplyController {
       template: request.template,
       language: request.language,
       parameters: request.parameters,
+      waitForCustomer: request.waitForCustomer,
     });
     let result: SendResult;
     try {

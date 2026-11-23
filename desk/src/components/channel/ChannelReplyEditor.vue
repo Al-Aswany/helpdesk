@@ -27,7 +27,7 @@
         class="mb-3"
       />
       <div
-        class="flex items-start gap-2 rounded-md bg-surface-amber-2 p-3 text-ink-amber-8"
+        class="flex items-start gap-2 rounded-4 bg-surface-amber-2 p-3 text-ink-amber-8"
         role="alert"
       >
         <LucideTriangleAlert
@@ -60,7 +60,7 @@
         <!-- Why sending is off, and what to do next -->
         <div
           v-if="!resolved.canSend"
-          class="flex items-start gap-2 rounded-md bg-surface-amber-2 p-3 text-ink-amber-8"
+          class="flex items-start gap-2 rounded-4 bg-surface-amber-2 p-3 text-ink-amber-8"
           role="status"
           data-testid="channel-hold"
         >
@@ -75,7 +75,7 @@
         </div>
         <form
           v-if="templates.length"
-          class="flex flex-col gap-2 rounded-md border border-outline-gray-2 p-3"
+          class="flex flex-col gap-2 rounded-4 border border-outline-gray-2 p-3"
           data-testid="channel-template"
           @submit.prevent="sendTemplate"
         >
@@ -83,7 +83,7 @@
             {{ __("Approved template") }}
             <select
               v-model="templateKey"
-              class="mt-1 w-full rounded border border-outline-gray-2 bg-surface-white px-2 py-1"
+              class="mt-1 h-7 w-full rounded-4 border border-outline-gray-2 bg-surface-base px-2 text-base text-ink-gray-8 transition-colors hover:border-outline-gray-3 focus:border-outline-gray-4 focus:shadow-sm focus:outline-none"
               data-testid="channel-template-select"
             >
               <option
@@ -104,7 +104,7 @@
             <input
               v-model="templateParameters[index - 1]"
               dir="auto"
-              class="mt-1 w-full rounded border border-outline-gray-2 px-2 py-1"
+              class="mt-1 h-7 w-full rounded-4 border border-outline-gray-2 bg-surface-base px-2 text-base text-ink-gray-8 placeholder-ink-gray-4 transition-colors hover:border-outline-gray-3 focus:border-outline-gray-4 focus:shadow-sm focus:outline-none"
               :data-testid="'channel-template-param-' + index"
             />
           </label>
@@ -150,7 +150,7 @@
           </div>
           <div
             v-if="staged"
-            class="flex items-center gap-3 rounded-md border border-outline-gray-2 p-2"
+            class="flex items-center gap-3 rounded-4 border border-outline-gray-2 p-2"
             data-testid="channel-attachment-preview"
           >
             <img
@@ -216,7 +216,7 @@
         <div aria-live="polite" class="flex flex-col gap-2">
           <div
             v-if="blockedCopy"
-            class="rounded-md bg-surface-amber-2 p-3 text-p-sm text-ink-amber-8"
+            class="rounded-4 bg-surface-amber-2 p-3 text-p-sm text-ink-amber-8"
             data-testid="channel-notice-blocked"
           >
             <p class="font-medium">{{ __(blockedCopy.title) }}</p>
@@ -225,7 +225,7 @@
           </div>
           <div
             v-else-if="state.notice?.kind === 'conflict'"
-            class="rounded-md bg-surface-amber-2 p-3 text-p-sm text-ink-amber-8"
+            class="rounded-4 bg-surface-amber-2 p-3 text-p-sm text-ink-amber-8"
             data-testid="channel-notice-conflict"
           >
             <p class="font-medium">{{ __("This reply was not sent") }}</p>
@@ -255,7 +255,7 @@
           </div>
           <div
             v-else-if="state.notice?.kind === 'rejected'"
-            class="rounded-md bg-surface-red-1 p-3 text-p-sm text-ink-red-6"
+            class="rounded-4 bg-surface-red-1 p-3 text-p-sm text-ink-red-6"
             role="alert"
             data-testid="channel-notice-rejected"
           >
@@ -273,7 +273,7 @@
           </div>
           <div
             v-else-if="state.phase === 'confirming'"
-            class="flex items-center gap-2 rounded-md bg-surface-gray-2 p-3 text-p-sm text-ink-gray-7"
+            class="flex items-center gap-2 rounded-4 bg-surface-gray-2 p-3 text-p-sm text-ink-gray-7"
             role="status"
             data-testid="channel-notice-saving"
           >
@@ -282,7 +282,7 @@
           </div>
           <div
             v-else-if="state.phase === 'unconfirmed' || resolutionNeeded"
-            class="rounded-md bg-surface-amber-2 p-3 text-p-sm text-ink-amber-8"
+            class="rounded-4 bg-surface-amber-2 p-3 text-p-sm text-ink-amber-8"
             role="alert"
             data-testid="channel-notice-unconfirmed"
           >
@@ -332,7 +332,7 @@
           v-model="draft"
           dir="auto"
           rows="4"
-          class="min-h-[7rem] max-h-[30vh] w-full resize-y rounded border border-outline-gray-2 bg-surface-white px-3 py-2 text-base text-ink-gray-8 placeholder-ink-gray-4 transition-colors hover:border-outline-gray-3 focus:border-outline-gray-4 focus:outline-none focus:ring-2 focus:ring-outline-gray-3 disabled:cursor-not-allowed disabled:opacity-60"
+          class="block max-h-[30vh] min-h-20 w-full resize-y rounded-4 border border-outline-gray-2 bg-surface-base px-2.5 py-1.5 text-p-sm text-ink-gray-8 placeholder-ink-gray-4 transition-colors hover:border-outline-gray-3 focus:border-outline-gray-4 focus:shadow-sm focus:outline-none focus:ring-0 disabled:cursor-not-allowed disabled:opacity-60"
           :placeholder="placeholder ? __(placeholder) : ''"
           :aria-label="__('Message to the customer')"
           :disabled="!resolved.canSend || busy"
@@ -358,12 +358,20 @@
         <div class="ms-auto flex items-center gap-x-2">
           <Button :label="__('Discard')" @click="discard" />
           <Button
+            variant="subtle"
+            :label="__('Reply and wait for customer')"
+            :disabled="!canSubmit"
+            :loading="busy || state.phase === 'sending'"
+            data-testid="channel-reply-and-wait"
+            @click="submit(true)"
+          />
+          <Button
             variant="solid"
             :label="label"
             :disabled="!canSubmit"
             :loading="busy || state.phase === 'sending'"
             data-testid="channel-send"
-            @click="submit"
+            @click="submit(false)"
           />
         </div>
       </div>
@@ -485,16 +493,19 @@ const previewUrl = ref("");
 const localFiles = new Map<string, File>();
 let editorFlight: Promise<boolean> | null = null;
 const awaitingResult = ref(false);
+const waitForCustomer = ref(false);
 
 const composer = new AttachmentComposer({
   upload: uploadStagedFile,
   submitText: () => {
     awaitingResult.value = true;
-    return channel.submit();
+    return channel.submit({ waitForCustomer: waitForCustomer.value });
   },
   submitFile: (file, caption) => {
     awaitingResult.value = true;
-    return channel.submitFile(file, caption);
+    return channel.submitFile(file, caption, {
+      waitForCustomer: waitForCustomer.value,
+    });
   },
   pendingFile: () => state.value.pending?.file || null,
 });
@@ -713,8 +724,9 @@ const windowHint = computed(() => {
     : "";
 });
 
-function submit() {
+function submit(wait = false) {
   if (editorFlight) return editorFlight;
+  waitForCustomer.value = wait;
   if (!canSubmit.value) return false;
   busy.value = true;
   editorFlight = runSubmit().finally(() => {

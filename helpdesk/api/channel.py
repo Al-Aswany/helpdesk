@@ -369,6 +369,7 @@ def send_channel_reply(
     template: str | None = None,
     language: str | None = None,
     parameters=None,
+    wait_for_customer: int = 0,
 ) -> dict:
     """Hand one public reply to the ticket's channel provider.
 
@@ -394,6 +395,12 @@ def send_channel_reply(
         frappe.throw(
             _("This conversation channel is not available."), frappe.ValidationError
         )
+    waiting = frappe.utils.cint(wait_for_customer)
+    ticket_doc = frappe.get_doc("HD Ticket", ticket)
+    if waiting:
+        ticket_doc.arm_customer_wait()
+    else:
+        ticket_doc.clear_customer_wait()
     if file and template:
         frappe.throw(_("Send either a file or a template."), frappe.ValidationError)
     if file:
@@ -418,4 +425,6 @@ def send_channel_reply(
         )
     if not isinstance(result, dict):
         frappe.throw(_("The reply was not saved."), frappe.ValidationError)
+    if result.get("state") in {"Failed", "Blocked", "Conflict"}:
+        frappe.get_doc("HD Ticket", ticket).clear_customer_wait()
     return {field: result.get(field) for field in _RESULT_FIELDS}

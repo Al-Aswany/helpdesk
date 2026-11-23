@@ -12,7 +12,7 @@ from frappe.desk.form.assign_to import get as get_assignees
 from frappe.email.email_body import get_message_id
 from frappe.model.document import Document
 from frappe.permissions import add_permission, update_permission_property
-from frappe.utils import add_to_date, cint, get_string_between, getdate, now_datetime
+from frappe.utils import add_to_date, cint, get_datetime, get_string_between, getdate, now_datetime
 from pypika.functions import Count
 from pypika.queries import Query
 from pypika.terms import Criterion
@@ -682,11 +682,19 @@ class HDTicket(Document):
         cc: str | None = None,
         bcc: str | None = None,
         attachments: list[str] = [],
+        wait_for_customer: int = 0,
     ):
         if not is_agent():
             frappe.throw(
                 _("You are not permitted to reply as an agent"), frappe.PermissionError
             )
+        # Ordinary Send clears a previous wait. Only this flag pauses the SLA,
+        # and only after the message is actually handed off.
+        waiting = cint(wait_for_customer)
+        if waiting:
+            self.arm_customer_wait()
+        else:
+            self.clear_customer_wait()
         skip_email_workflow = self.skip_email_workflow()
         medium = "" if skip_email_workflow else "Email"
         subject = f"Re: {self.subject}"
@@ -743,76 +751,85 @@ class HDTicket(Document):
                 )
             message_id = get_string_between("<", get_message_id(), ">")
 
-        communication.insert(ignore_permissions=True)
-        capture_event("agent_replied")
+        try:
+            communication.insert(ignore_permissions=True)
+            capture_event("agent_replied")
 
-        _attachments = []
+            _attachments = []
 
-        for attachment in attachments:
-            file_url = frappe.db.get_value("File", attachment, "file_url")
-            self.attach_file_with_doc("Communication", communication.name, file_url)
-            self.attach_file_with_doc("HD Ticket", self.name, file_url)
-            _attachments.append({"file_url": file_url})
+            for attachment in attachments:
+                file_url = frappe.db.get_value("File", attachment, "file_url")
+                self.attach_file_with_doc("Communication", communication.name, file_url)
+                self.attach_file_with_doc("HD Ticket", self.name, file_url)
+                _attachments.append({"file_url": file_url})
 
-        if not should_send_email:
-            return communication.name
+            if not should_send_email:
+                self.finish_customer_wait(waiting)
+                return communication.name
 
-        message = self.parse_content(message)
-        message += self._account_signature_fallback(sender_email.name)
+            message = self.parse_content(message)
+            message += self._account_signature_fallback(sender_email.name)
 
-        reply_to_email = sender_email.email_id
-        rendered_template: str | None = None
-        if self.via_customer_portal:
-            email_content = frappe.db.get_single_value(
-                "HD Settings", "reply_via_agent_email_content"
-            )
-            default_email_content = get_default_email_content("reply_via_agent")
+            reply_to_email = sender_email.email_id
+            rendered_template: str | None = None
+            if self.via_customer_portal:
+                email_content = frappe.db.get_single_value(
+                    "HD Settings", "reply_via_agent_email_content"
+                )
+                default_email_content = get_default_email_content("reply_via_agent")
+                try:
+                    rendered_template = self._get_rendered_template(
+                        email_content,
+                        default_email_content,
+                        {"message": message, "ticket_url": self.portal_uri},
+                    )
+                except Exception as e:
+                    self.clear_customer_wait()
+                    frappe.throw(_("Could not an email due to: {0}").format(e))
+
+            send_delayed = True
+            send_now = False
+
+            if self.instantly_send_email():
+                send_delayed = False
+                send_now = True
+
             try:
-                rendered_template = self._get_rendered_template(
-                    email_content,
-                    default_email_content,
-                    {"message": message, "ticket_url": self.portal_uri},
+                queued_email = frappe.sendmail(
+                    attachments=_attachments,
+                    bcc=bcc,
+                    cc=cc,
+                    communication=communication.name,
+                    delayed=send_delayed,
+                    expose_recipients="header",
+                    message=rendered_template if rendered_template is not None else message,
+                    as_markdown=True,
+                    now=send_now,
+                    recipients=recipients,
+                    reference_doctype="HD Ticket",
+                    reference_name=self.name,
+                    reply_to=reply_to_email,
+                    sender=reply_to_email,
+                    subject=subject,
+                    with_container=False,
+                    in_reply_to=communication.in_reply_to,
+                    message_id=message_id,
                 )
             except Exception as e:
-                frappe.throw(_("Could not an email due to: {0}").format(e))
+                self.clear_customer_wait()
+                frappe.throw(str(e))
 
-        send_delayed = True
-        send_now = False
+            # Save the id now that a mail is queued carrying it. A reply we could not hand
+            # off keeps no id, so it can never become the next reply's parent.
+            if queued_email:
+                communication.db_set("message_id", message_id)
 
-        if self.instantly_send_email():
-            send_delayed = False
-            send_now = True
-
-        try:
-            queued_email = frappe.sendmail(
-                attachments=_attachments,
-                bcc=bcc,
-                cc=cc,
-                communication=communication.name,
-                delayed=send_delayed,
-                expose_recipients="header",
-                message=rendered_template if rendered_template is not None else message,
-                as_markdown=True,
-                now=send_now,
-                recipients=recipients,
-                reference_doctype="HD Ticket",
-                reference_name=self.name,
-                reply_to=reply_to_email,
-                sender=reply_to_email,
-                subject=subject,
-                with_container=False,
-                in_reply_to=communication.in_reply_to,
-                message_id=message_id,
-            )
-        except Exception as e:
-            frappe.throw(str(e))
-
-        # Save the id now that a mail is queued carrying it. A reply we could not hand
-        # off keeps no id, so it can never become the next reply's parent.
-        if queued_email:
-            communication.db_set("message_id", message_id)
-
-        return communication.name
+            self.finish_customer_wait(waiting)
+            return communication.name
+        except Exception:
+            if waiting:
+                self.clear_customer_wait()
+            raise
 
     @frappe.whitelist()
     # flake8: noqa
@@ -1067,6 +1084,58 @@ class HDTicket(Document):
     # It is called when a communication is updated. Beware of changes as this effectively
     # is an external dependency. Refer `communication.py` of Frappe framework for more.
     # Since this is called from communication itself, `c` is the communication doc.
+    def arm_customer_wait(self):
+        """Mark the next successful send as 'Reply and wait for customer'."""
+        self.db_set(
+            {
+                "inchaa_wait_for_customer": 1,
+                "inchaa_wait_requested_on": now_datetime(),
+            },
+            update_modified=False,
+        )
+
+    def clear_customer_wait(self):
+        self.db_set(
+            {
+                "inchaa_wait_for_customer": 0,
+                "inchaa_wait_requested_on": None,
+            },
+            update_modified=False,
+        )
+
+    def customer_replied_since_wait(self) -> bool:
+        requested = self.inchaa_wait_requested_on
+        if not requested:
+            return False
+        return bool(
+            frappe.db.exists(
+                "Communication",
+                {
+                    "reference_doctype": "HD Ticket",
+                    "reference_name": self.name,
+                    "sent_or_received": "Received",
+                    "creation": [">=", requested],
+                },
+            )
+        )
+
+    def take_customer_wait(self) -> bool:
+        """Consume the wait. Pause only when no customer reply is already newer."""
+        armed = cint(self.inchaa_wait_for_customer)
+        newer = self.customer_replied_since_wait()
+        self.inchaa_wait_for_customer = 0
+        self.inchaa_wait_requested_on = None
+        return bool(armed) and not newer
+
+    def finish_customer_wait(self, waiting: bool):
+        """Pause after an email reply has been handed to the mail queue."""
+        if not waiting:
+            return
+        self.reload()
+        if self.take_customer_wait():
+            self.status = "Replied"
+        self.save(ignore_permissions=True)
+
     def on_communication_update(self, c):
         # A reply to a merged ticket belongs to its merge target; redirect it there. If no
         # safe target resolves (cycle/dead-end), fall through and handle it here so the
@@ -1079,6 +1148,9 @@ class HDTicket(Document):
         # be reopened.
         # handle re opening tickets for email
         if c.sent_or_received == "Received":
+            # A customer reply cancels a pending pause. The request time is kept
+            # so a late acceptance cannot stamp the agent reply as the latest word.
+            self.inchaa_wait_for_customer = 0
             # check if agent has replied
 
             if self.has_agent_replied:
@@ -1093,17 +1165,19 @@ class HDTicket(Document):
             # Ignore system notifications
             if c.communication_type and c.communication_type == "Automated Message":
                 return
-            # Set first response date if not set already
+            # A delivery receipt saves the same message again. Leave the status
+            # and the reply time where the original send put them.
+            if c.get_doc_before_save():
+                return
             self.first_responded_on = (
                 self.first_responded_on or frappe.utils.now_datetime()
             )
-            self.last_agent_response = frappe.utils.now_datetime()
-
-            # TODO: remove this feature once we add automation feature
-            if frappe.db.get_single_value("HD Settings", "auto_update_status"):
-                self.status = frappe.db.get_single_value(
-                    "HD Settings", "update_status_to"
-                )
+            if not self.customer_replied_since_wait():
+                self.last_agent_response = frappe.utils.now_datetime()
+            # Channel acceptance is the successful send. Email pauses later,
+            # after the message has been handed to the mail queue.
+            if c.communication_medium == "Chat" and self.take_customer_wait():
+                self.status = "Replied"
 
         # Fetch description from communication if not set already. This might not be needed
         # anymore as a communication is created when a ticket is created.
