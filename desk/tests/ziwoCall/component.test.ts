@@ -838,6 +838,42 @@ test("agents keep the full name the server sends", () => {
   );
 });
 
+test("an unknown caller can be added to an existing contact from the panel", () => {
+  const source = code(panel);
+  assert.match(source, /v-if="unknownCaller\(focus\) && focus\.logName"[\s\S]*?data-testid="ziwo-contact-search"/);
+  assert.match(source, /call\("helpdesk\.api\.contact\.find_contacts", \{ txt \}\)/);
+  assert.match(source, /controller\.chooseContact\(callId, contact, \{ callLog, addNumber: true \}\)/);
+  assert.match(code(controller), /\.\.\.\(options\.addNumber \? \{ add_number: 1 \} : \{\}\)/);
+});
+
+test("the dashboard shows contact-centre numbers for the chosen period and agent", () => {
+  const page = code(read("pages/dashboard/Dashboard.vue"));
+  assert.match(page, /<ContactCentreSection\s+v-if="filters\.period"\s+:filters="parseFilters\(filters\)"/);
+  const section = code(read("components/ContactCentreSection.vue"));
+  assert.match(section, /url: "inchaa_custmization\.integrations\.contact_centre\.get_stats"/);
+  assert.match(section, /\(\) => \[props\.filters\.from_date, props\.filters\.to_date, props\.filters\.agent\]/);
+});
+
+test("only managers are offered Merge contacts", () => {
+  const page = code(read("pages/contact/Contact.vue"));
+  assert.match(page, /<MergeContactDialog\s+v-if="isManager"/);
+  assert.match(page, /\.\.\.\(isManager\s+\? \[\s+\{\s+label: __\("Merge into another contact"\)/);
+  const dialog = code(read("components/contact/MergeContactDialog.vue"));
+  assert.match(dialog, /call\("helpdesk\.api\.contact\.merge_contacts"/);
+  assert.match(dialog, /row\.name !== props\.source/);
+});
+
+test("a call that just ended asks once for its outcome and can be skipped", () => {
+  const source = code(panel);
+  const prompt = source.slice(source.indexOf("const outcomePrompt"), source.indexOf("const newerCall"));
+  assert.match(prompt, /const item = wrapUp\.value;/);
+  assert.match(prompt, /if \(!item\.answered && item\.direction !== "Outbound"\) return null;/);
+  assert.match(prompt, /if \(!ready \|\| outcomeAsked\.has\(ready\.logName\)\) return;/);
+  assert.match(source, /<ContactCallOutcomeDialog\s+v-model:open="outcomePrompt\.open"[\s\S]*?:cancel-label="__\('Skip'\)"/);
+  const dialog = code(read("components/contact/ContactCallOutcomeDialog.vue"));
+  assert.match(dialog, /:label="cancelLabel \|\| __\('Cancel'\)"/);
+});
+
 test("each contact call card carries its own outcome action", () => {
   const calls = code(read("components/contact/ContactCalls.vue"));
   assert.match(code(list), /<slot name="actions" :row="row" \/>/);

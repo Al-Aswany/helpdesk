@@ -474,6 +474,55 @@
               </div>
             </div>
 
+            <div
+              v-if="unknownCaller(focus) && focus.logName"
+              class="space-y-1.5"
+              data-testid="ziwo-contact-search"
+            >
+              <div class="font-medium text-ink-gray-9">{{ __("Known customer?") }}</div>
+              <form class="flex gap-2" @submit.prevent="findCallerContacts">
+                <input
+                  v-model="draft.contactQuery"
+                  class="min-w-0 flex-1 rounded-xl border border-outline-gray-2 px-3 py-2"
+                  :placeholder="__('Name or email')"
+                  :aria-label="__('Find a contact')"
+                  autocomplete="off"
+                  data-testid="ziwo-contact-query"
+                />
+                <Button
+                  size="sm"
+                  :label="__('Search')"
+                  type="submit"
+                  :loading="draft.contactSearching"
+                />
+              </form>
+              <div
+                v-for="c in draft.contactResults"
+                :key="c.name"
+                class="flex items-center justify-between gap-2"
+              >
+                <span class="min-w-0 truncate">
+                  {{ c.full_name || c.name }}
+                  <span class="text-ink-gray-5">{{ c.email_id || c.mobile_no || "" }}</span>
+                </span>
+                <Button
+                  size="sm"
+                  :label="__('Add this number')"
+                  :loading="draft.contactSaving === c.name"
+                  :disabled="Boolean(draft.contactSaving)"
+                  :data-testid="`ziwo-add-number-${c.name}`"
+                  @click="addNumberTo(focus.callId, c.name)"
+                />
+              </div>
+              <p
+                v-if="draft.contactSearched && !draft.contactResults.length"
+                class="text-ink-gray-5"
+              >
+                {{ __("No contact found. Creating a ticket below adds a new one.") }}
+              </p>
+              <p v-if="draft.contactError" class="text-ink-red-6">{{ draft.contactError }}</p>
+            </div>
+
             <template v-if="showTicketTools(focus)">
               <div class="font-medium text-ink-gray-9">
                 {{ unknownCaller(focus) ? __("Find a ticket") : __("Suggested ticket") }}
@@ -823,6 +872,13 @@
         </button>
       </div>
     </section>
+    <ContactCallOutcomeDialog
+      v-model:open="outcomePrompt.open"
+      :contact="outcomePrompt.contact"
+      :call-log="outcomePrompt.logName"
+      :ticket="outcomePrompt.ticket"
+      :cancel-label="__('Skip')"
+    />
   </Teleport>
 </template>
 
@@ -855,10 +911,18 @@ import LucideInfo from "~icons/lucide/info";
 import LucidePhone from "~icons/lucide/phone";
 import LucidePhoneOff from "~icons/lucide/phone-off";
 import LucideX from "~icons/lucide/x";
+import ContactCallOutcomeDialog from "@/components/contact/ContactCallOutcomeDialog.vue";
 import ZiwoRecordingPlayer from "./ZiwoRecordingPlayer.vue";
 
 const API = "inchaa_custmization.integrations.ziwo.api.";
 const SDK_START_TIMEOUT_MS = 30000;
+
+interface ContactChoice {
+  name: string;
+  full_name?: string;
+  email_id?: string;
+  mobile_no?: string;
+}
 
 interface CallDraft {
   logName: string;
@@ -867,6 +931,12 @@ interface CallDraft {
   searchEmpty: boolean;
   pending: TicketChoice | null;
   showCreate: boolean;
+  contactQuery: string;
+  contactResults: ContactChoice[];
+  contactSearched: boolean;
+  contactSearching: boolean;
+  contactSaving: string;
+  contactError: string;
   callerName: string;
   subject: string;
   summary: string;
@@ -888,6 +958,12 @@ function emptyDraft(): CallDraft {
     searchEmpty: false,
     pending: null,
     showCreate: false,
+    contactQuery: "",
+    contactResults: [],
+    contactSearched: false,
+    contactSearching: false,
+    contactSaving: "",
+    contactError: "",
     callerName: "",
     subject: "",
     summary: "",
@@ -908,6 +984,7 @@ function draftIsOpen(held: CallDraft | undefined): boolean {
   return Boolean(
     held.pending ||
       held.showCreate ||
+      held.contactQuery.trim() ||
       held.callerName.trim() ||
       held.subject.trim() ||
       held.summary.trim() ||
@@ -1127,6 +1204,45 @@ function onHangup() {
   act(controller.hangup(call.callId));
 }
 
+async function findCallerContacts() {
+  const item = focus.value;
+  if (!item) return;
+  const held = draftFor(item.callId);
+  const txt = held.contactQuery.trim();
+  if (!txt || held.contactSearching) return;
+  held.contactSearching = true;
+  held.contactError = "";
+  try {
+    held.contactResults = (await call("helpdesk.api.contact.find_contacts", { txt })) || [];
+  } catch {
+    held.contactResults = [];
+    held.contactError = __("Contacts could not be searched.");
+  }
+  held.contactSearching = false;
+  held.contactSearched = true;
+}
+
+async function addNumberTo(callId: string, contact: string) {
+  const item = view.value.calls.find((each) => each.callId === callId);
+  const callLog = item?.logName || "";
+  const held = draftFor(callId);
+  if (!callLog || held.contactSaving) return;
+  held.logName = callLog;
+  held.contactSaving = contact;
+  held.contactError = "";
+  const result = await controller.chooseContact(callId, contact, { callLog, addNumber: true });
+  const same = drafts.get(callId);
+  if (!same) return;
+  same.contactSaving = "";
+  if (!result.ok) {
+    same.contactError = result.error || "";
+    return;
+  }
+  same.contactQuery = "";
+  same.contactResults = [];
+  same.contactSearched = false;
+}
+
 async function useContact(callId: string, contact: string) {
   const call = view.value.calls.find((item) => item.callId === callId);
   const callLog = call?.logName || "";
@@ -1311,6 +1427,25 @@ watch(
       if (item.status === "ended" && prior && prior !== "ended")
         wrapUpId.value = item.callId;
     }
+  }
+);
+
+// A call that just ended asks once for its outcome, as soon as its contact is known. An
+// incoming call nobody answered is left to the missed-call callback.
+const outcomePrompt = reactive({ open: false, logName: "", contact: "", ticket: "" });
+const outcomeAsked = new Set<string>();
+watch(
+  () => {
+    const item = wrapUp.value;
+    if (!item || item.status !== "ended" || !item.logName) return null;
+    if (!item.answered && item.direction !== "Outbound") return null;
+    const contact = outcomeContact(item);
+    return contact ? { logName: item.logName, contact, ticket: item.ticket } : null;
+  },
+  (ready) => {
+    if (!ready || outcomeAsked.has(ready.logName)) return;
+    outcomeAsked.add(ready.logName);
+    Object.assign(outcomePrompt, { open: true, ...ready });
   }
 );
 

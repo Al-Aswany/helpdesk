@@ -1269,7 +1269,7 @@ export class ZiwoController {
   async chooseContact(
     callId: string,
     contact: string,
-    options: { callLog?: string } = {}
+    options: { callLog?: string; addNumber?: boolean } = {}
   ): Promise<ActionResult> {
     const ready = await this.savedCall(callId);
     if ("error" in ready) return fail(ready.error);
@@ -1280,6 +1280,7 @@ export class ZiwoController {
       const snapshot = await this.deps.post("set_saved_contact", {
         call_log: String(options.callLog).trim(),
         contact,
+        ...(options.addNumber ? { add_number: 1 } : {}),
       });
       call.contact = String(snapshot?.contact ?? contact);
       this.notify();

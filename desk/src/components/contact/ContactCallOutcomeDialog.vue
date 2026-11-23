@@ -31,8 +31,12 @@
       >
         {{
           form.disposition === "Call back"
-            ? __("Callback time ({0})", [timezone])
-            : __("Move the follow-up ({0})", [timezone])
+            ? timezone
+              ? __("Callback time ({0})", [timezone])
+              : __("Callback time")
+            : timezone
+              ? __("Move the follow-up ({0})", [timezone])
+              : __("Move the follow-up")
         }}
         <input
           v-model="form.due_at"
@@ -57,7 +61,11 @@
       />
       <p v-if="error" role="alert" class="text-sm text-ink-red-6">{{ error }}</p>
       <div class="flex justify-end gap-2">
-        <Button :label="__('Cancel')" :disabled="saving" @click="open = false" />
+        <Button
+          :label="cancelLabel || __('Cancel')"
+          :disabled="saving"
+          @click="open = false"
+        />
         <Button
           type="submit"
           variant="solid"
@@ -82,6 +90,7 @@ const props = defineProps<{
   disposition?: string;
   note?: string;
   zohoLeadEntered?: boolean;
+  cancelLabel?: string;
 }>();
 const open = defineModel<boolean>("open", { default: false });
 const emit = defineEmits<{ saved: [] }>();

@@ -104,6 +104,10 @@
           <NumberCard v-bind="card" />
         </Tooltip>
       </div>
+      <ContactCentreSection
+        v-if="filters.period"
+        :filters="parseFilters(filters)"
+      />
       <div
         v-if="!loading && !isEmpty"
         class="transition-all animate-fade-in duration-300"
@@ -209,6 +213,7 @@
 </template>
 
 <script setup lang="ts">
+import ContactCentreSection from "@/components/ContactCentreSection.vue";
 import { useScreenSize } from "@/composables/screen";
 import { useAuthStore } from "@/stores/auth";
 import { __ } from "@/translation";
