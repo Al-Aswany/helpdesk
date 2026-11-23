@@ -5,7 +5,7 @@ from frappe.tests.utils import FrappeTestCase
 
 from helpdesk.patches import relabel_comment_search_index
 from helpdesk.search_sqlite import HelpdeskSearch
-from helpdesk.test_utils import create_user, make_ticket
+from helpdesk.test_utils import create_agent, create_user, make_team, make_ticket
 
 RESTRICTED_USER = "helpdesk-search-user@example.com"
 
@@ -147,3 +147,79 @@ class TestSearchIndexRelabel(FrappeTestCase):
         ticket = self.row("10")
         self.assertEqual(ticket["ticket_type"], "text")
         self.assertEqual(ticket["reference_ticket"], "10")
+
+
+class TestAgentSearchHidesRestrictedTickets(FrappeTestCase):
+    """A regular agent finds tickets their team can access, and no others."""
+
+    TEST_INDEX = "test_agent_permission_search.db"
+
+    def setUp(self):
+        frappe.set_user("Administrator")
+        self.search = HelpdeskSearch(db_name=self.TEST_INDEX)
+        self.search.drop_index()
+        self.search._ensure_fts_table()
+        self.addCleanup(self.search.drop_index)
+        self.agent_a = create_agent("search-agent-a@example.com").name
+        self.agent_b = create_agent("search-agent-b@example.com").name
+        make_team("Search Team A", [self.agent_a])
+        make_team("Search Team B", [self.agent_b])
+        self.ticket_a = make_ticket(
+            subject="alpha lighthouse", agent_group="Search Team A"
+        )
+        self.ticket_b = make_ticket(
+            subject="bravo lighthouse", agent_group="Search Team B"
+        )
+        self.insert_row(self.ticket_a)
+        self.insert_row(self.ticket_b)
+        self.previous = frappe.db.get_value(
+            "HD Settings",
+            "HD Settings",
+            [
+                "restrict_tickets_by_agent_group",
+                "do_not_restrict_tickets_without_an_agent_group",
+            ],
+            as_dict=True,
+        )
+        frappe.db.set_single_value("HD Settings", "restrict_tickets_by_agent_group", 1)
+        frappe.db.set_single_value(
+            "HD Settings", "do_not_restrict_tickets_without_an_agent_group", 0
+        )
+
+    def tearDown(self):
+        frappe.set_user("Administrator")
+        frappe.db.set_single_value(
+            "HD Settings",
+            "restrict_tickets_by_agent_group",
+            self.previous.restrict_tickets_by_agent_group,
+        )
+        frappe.db.set_single_value(
+            "HD Settings",
+            "do_not_restrict_tickets_without_an_agent_group",
+            self.previous.do_not_restrict_tickets_without_an_agent_group,
+        )
+
+    def insert_row(self, ticket) -> None:
+        self.search.sql(
+            """INSERT INTO search_fts
+                (doc_id, title, content, doctype, name, reference_ticket)
+            VALUES (?, ?, ?, ?, ?, ?)""",
+            (
+                f"HD Ticket:{ticket.name}",
+                ticket.subject,
+                ticket.subject,
+                "HD Ticket",
+                ticket.name,
+                ticket.name,
+            ),
+            commit=True,
+        )
+
+    def names_for(self, user: str) -> list[str]:
+        frappe.set_user(user)
+        found = self.search.search("lighthouse")
+        return [row.get("name") for row in found["results"]]
+
+    def test_an_agent_finds_only_tickets_they_can_access(self):
+        self.assertEqual(self.names_for(self.agent_a), [self.ticket_a.name])
+        self.assertEqual(self.names_for(self.agent_b), [self.ticket_b.name])
