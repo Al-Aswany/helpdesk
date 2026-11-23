@@ -3,6 +3,7 @@ import { personas } from "../../../helpers/personas";
 import {
   addComment,
   comments,
+  chooseCustomer,
   composer,
   openTicket,
   postComment,
@@ -17,6 +18,7 @@ usePersona("agent");
 test("agent raises a ticket from the new ticket form", async ({ page, api }) => {
   const subject = `Agent raised ${uid()}`;
   await page.goto("/helpdesk/tickets/new");
+  await chooseCustomer(page, personas.customer.email);
   await page.getByPlaceholder("A short description").fill(subject);
   await composer(page).click();
   await composer(page).pressSequentially("Printer is on fire");
@@ -27,6 +29,9 @@ test("agent raises a ticket from the new ticket form", async ({ page, api }) => 
   const ticket = await api.get("HD Ticket", page.url().split("/").pop()!);
   expect(ticket.subject).toBe(subject);
   expect(ticket.description).toContain("Printer is on fire");
+  expect(ticket.contact).toBeTruthy();
+  expect(ticket.raised_by).toBe(personas.customer.email);
+  expect(ticket.owner).toBe(personas.agent.email);
 });
 
 test("email reply with cc and an attachment is sent and stored", async ({ page, api, ticket }) => {

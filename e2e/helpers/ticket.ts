@@ -7,6 +7,18 @@ export async function openTicket(page: Page, name: string, hash = "") {
   await expect(page.getByRole("tab", { name: "Activity" })).toBeVisible();
 }
 
+/** Pick the customer the agent new-ticket form now requires. */
+export async function chooseCustomer(page: Page, query: string) {
+  const search = page.getByTestId("ticket-contact-search");
+  await search.fill(query);
+  await page
+    .getByTestId("ticket-contact-picker")
+    .getByRole("button", { name: new RegExp(query, "i") })
+    .first()
+    .click();
+  await expect(page.getByTestId("ticket-contact-chosen")).toBeVisible();
+}
+
 /** The composer's editor; the last one on the page is the open reply or comment box. */
 export function composer(page: Page) {
   return page.locator(".ProseMirror[contenteditable=true]").last();

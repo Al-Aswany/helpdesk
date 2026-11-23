@@ -2,7 +2,7 @@ import frappe
 from frappe.tests.utils import FrappeTestCase
 
 from helpdesk.api.contact import find_contacts
-from helpdesk.helpdesk.doctype.hd_ticket.api import new
+from helpdesk.helpdesk.doctype.hd_ticket.api import get_ticket_contact, new
 from helpdesk.test_utils import create_agent, create_contact, unique_email, unique_name
 
 
@@ -41,11 +41,16 @@ class TestAgentCreatesTicketForCustomer(FrappeTestCase):
         self.assertEqual(ticket.contact, self.contact)
         self.assertEqual(ticket.raised_by, self.customer_email)
 
-    def test_a_phone_only_customer_keeps_the_agent_as_raised_by(self) -> None:
+    def test_a_phone_only_customer_is_shown_as_the_requester(self) -> None:
         contact = phone_contact("+971501110099")
         ticket = self.create(contact=contact)
         self.assertEqual(ticket.contact, contact)
+        self.assertEqual(ticket.owner, self.agent)
         self.assertEqual(ticket.raised_by, self.agent)
+        shown = get_ticket_contact(ticket.name)
+        self.assertEqual(shown.name, contact)
+        self.assertEqual(shown.mobile_no, "+971501110099")
+        self.assertNotEqual(shown.email_id, self.agent)
 
     def test_a_ticket_without_a_customer_is_refused(self) -> None:
         with self.assertRaises(frappe.ValidationError):
