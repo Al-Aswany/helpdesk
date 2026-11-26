@@ -37,14 +37,14 @@
 
   <!-- Loading State -->
   <div
-    v-if="list.loading && !list.data?.data?.length"
+    v-if="loadState === 'loading'"
     class="flex items-center justify-center h-full w-full absolute top-0 z-100"
   >
     <LoadingIndicator class="size-6 text-ink-gray-4" />
   </div>
   <!-- List View -->
   <ListView
-    v-else-if="list.data?.data.length > 0"
+    v-else-if="loadState === 'rows'"
     class="flex-1"
     :columns="columns"
     :rows="rows"
@@ -106,7 +106,7 @@
   <!-- List Footer -->
   <div
     class="p-20 border-t sm:px-5 px-3 py-2"
-    v-if="list.data?.data.length > 0"
+    v-if="loadState === 'rows'"
   >
     <ListFooter
       :options="{
@@ -133,9 +133,30 @@
       </template>
     </ListFooter>
   </div>
+  <!-- Failed load: not the empty state -->
+  <div
+    v-else-if="loadState === 'error'"
+    class="absolute inset-x-0 bottom-0 top-14 flex items-center justify-center"
+  >
+    <div class="flex flex-col items-center gap-2 px-6 text-center">
+      <div class="text-xl-medium text-ink-gray-8">
+        {{ listErrorCopy.title }}
+      </div>
+      <p class="max-w-md text-p-sm text-ink-gray-5">
+        {{ listErrorCopy.description }}
+      </p>
+      <Button
+        class="mt-1"
+        variant="solid"
+        theme="gray"
+        :label="listErrorCopy.action"
+        @click="reload()"
+      />
+    </div>
+  </div>
   <!-- Empty State -->
   <EmptyState
-    v-else-if="!list.loading"
+    v-else-if="loadState === 'empty'"
     :title="emptyState.title"
     :icon="emptyState.icon"
     :description="emptyState.description"
@@ -157,6 +178,7 @@ import {
   useView,
   views,
 } from "@/composables/useView";
+import { listLoadState } from "@/listLoadState";
 import { useAuthStore } from "@/stores/auth";
 import { globalStore } from "@/stores/globalStore";
 import { capture } from "@/telemetry";
@@ -210,6 +232,11 @@ interface P {
       icon?: string | VNode;
       title: string;
       description?: string;
+    };
+    errorState?: {
+      title: string;
+      description?: string;
+      action?: string;
     };
     hideViewControls?: boolean;
     hideColumnSetting?: boolean;
@@ -416,6 +443,22 @@ const exposeFunctions = {
   reload,
   unselectAll: () => {},
 };
+
+const loadState = computed(() =>
+  listLoadState({
+    loading: Boolean(list.loading),
+    error: list.error,
+    rowCount: Array.isArray(list.data?.data) ? list.data.data.length : 0,
+  })
+);
+
+const listErrorCopy = computed(() => ({
+  title: options.value.errorState?.title || __("Couldn't load this list"),
+  description:
+    options.value.errorState?.description ||
+    __("Something went wrong while loading. Try again."),
+  action: options.value.errorState?.action || __("Retry"),
+}));
 
 /** Banner actions. `inline` picks the ones shown as buttons; the rest fill the "..." menu. */
 function selectBannerOptions(

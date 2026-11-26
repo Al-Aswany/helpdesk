@@ -258,6 +258,11 @@ const options = computed(() => ({
           )
         : undefined,
   },
+  errorState: {
+    title: __("Couldn't load tickets"),
+    description: __("The ticket list didn't load. Retry to try again."),
+    action: __("Retry"),
+  },
   rowRoute: {
     name: isCustomerPortal.value ? "TicketCustomer" : "TicketAgent",
     prop: "ticketId",

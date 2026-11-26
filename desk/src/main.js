@@ -23,6 +23,7 @@ import { isCustomerPortal } from "@/utils";
 import { translationPlugin } from "./translation";
 import CircleAlert from "~icons/lucide/circle-alert";
 import { initSocket } from "./socket";
+import { installCsrfFetchGuard, recoverDeskCsrf } from "./csrfRecovery";
 
 const globalComponents = {
   Badge,
@@ -37,8 +38,19 @@ const globalComponents = {
 // Attached to the fetcher, not set as the global `serverMessagesHandler`: the
 // global one also governs `call()`, which beta.63 started routing a response's
 // `_server_messages` through. Resources keep toasting, `call()` stays silent.
+installCsrfFetchGuard();
+
+// A stale CSRF token rejects here. Parallel calls share one reload, and a
+// reloading request stays pending so the screen does not treat it as success.
 setConfig("resourceFetcher", (options) =>
-  frappeRequest({ ...options, onServerMessages: showServerMessages })
+  frappeRequest({ ...options, onServerMessages: showServerMessages }).catch(
+    (error) => {
+      if (recoverDeskCsrf(error) === "reloading") {
+        return new Promise(() => {});
+      }
+      throw error;
+    }
+  )
 );
 
 function showServerMessages(msgs) {
@@ -61,6 +73,9 @@ function showServerMessages(msgs) {
   });
 }
 setConfig("fallbackErrorHandler", (error) => {
+  if (recoverDeskCsrf(error) !== "ignored") {
+    return;
+  }
   const msg = error.exc_type
     ? (error.messages || error.message || []).join(", ")
     : error.message;

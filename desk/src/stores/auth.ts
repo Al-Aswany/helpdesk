@@ -1,5 +1,6 @@
 import { LOGIN_PAGE, router } from "@/router";
 import { clearChannelReplyStorage } from "@/composables/userStorage";
+import { recoverDeskCsrf } from "@/csrfRecovery";
 import { call, createResource } from "frappe-ui";
 import { defineStore } from "pinia";
 import { computed, ComputedRef, Ref, ref } from "vue";
@@ -78,9 +79,16 @@ export const useAuthStore = defineStore("auth", () => {
   function logout() {
     clearChannelReplyStorage();
     user.value = null;
-    call(URI_LOGOUT).then(() => {
-      window.location.href = LOGIN_PAGE;
-    });
+    call(URI_LOGOUT)
+      .then(() => {
+        window.location.href = LOGIN_PAGE;
+      })
+      .catch((error) => {
+        // A rotated session cannot POST logout with the old token. Reload into
+        // the current session, or leave for the login page if that also fails.
+        if (recoverDeskCsrf(error) === "reloading") return;
+        window.location.href = LOGIN_PAGE;
+      });
   }
 
   return {
