@@ -4,6 +4,7 @@ import {
   buildMessageActivities,
   formatWindowLeft,
   hasAwaitingReceiptRows,
+  hasOpenReceiptWatch,
   hasPendingRows,
   htmlToPlainText,
   isTechnicalIdentity,
@@ -272,6 +273,39 @@ test("outbound states are shown as the backend reports them, never as delivered 
     outboundView(outbound({ state: "Uncertain" })).kept,
     true
   );
+});
+
+test("seen and delivered receipts stay monotonic in the badge", () => {
+  const seen = outboundView(outbound({ state: "Read" }));
+  assert.equal(seen.state, "Read");
+  assert.equal(seen.label, "Seen");
+  assert.equal(seen.tone, "green");
+  assert.equal(seen.pending, false);
+  assert.match(seen.detail, /Seen by the customer/);
+
+  const deliveredPhone = outboundView(outbound({ state: "Delivered" }), "WhatsApp");
+  assert.equal(deliveredPhone.label, "Delivered");
+  assert.match(deliveredPhone.detail, /customer's phone/);
+
+  const deliveredCustomer = outboundView(
+    outbound({ state: "Delivered" }),
+    "Messenger"
+  );
+  assert.equal(deliveredCustomer.label, "Delivered");
+  assert.match(deliveredCustomer.detail, /Delivered to the customer/);
+  assert.doesNotMatch(deliveredCustomer.detail, /phone/);
+
+  const accepted = outboundView(outbound({ state: "Accepted" }), "Messenger");
+  assert.equal(accepted.label, "Accepted");
+  assert.match(accepted.detail, /not confirmed/i);
+
+  assert.equal(hasOpenReceiptWatch([outbound({ state: "Delivered" })], "whatsapp"), true);
+  assert.equal(hasOpenReceiptWatch([outbound({ state: "Read" })], "whatsapp"), false);
+  assert.equal(hasOpenReceiptWatch([outbound({ state: "Delivered" })], "messenger"), false);
+  assert.equal(hasOpenReceiptWatch([outbound({ state: "Accepted" })], "instagram"), true);
+  assert.equal(hasOpenReceiptWatch([outbound({ state: "Accepted" })], "messenger"), true);
+  assert.equal(hasAwaitingReceiptRows([outbound({ state: "Delivered" })]), false);
+  assert.equal(hasAwaitingReceiptRows([outbound({ state: "Read" })]), false);
 });
 
 test("reason copy is actionable and has no internal wording", () => {

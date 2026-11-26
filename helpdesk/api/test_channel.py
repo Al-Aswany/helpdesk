@@ -181,6 +181,24 @@ class TestTicketChannel(FrappeTestCase):
         for leaked in ("must-not-leak", "wamid.X", "wa_id", "access_token"):
             self.assertNotIn(leaked, blob)
 
+    def test_outbound_receipt_states_pass_through_for_each_channel(self):
+        for key, state in (
+            ("whatsapp", "Accepted"),
+            ("whatsapp", "Delivered"),
+            ("whatsapp", "Read"),
+            ("messenger", "Accepted"),
+            ("messenger", "Delivered"),
+        ):
+            descriptor = channel.clean_descriptor(
+                key,
+                {
+                    "status": "ready",
+                    "outbound": [{"state": state, "body": "hello", "request_key": "k"}],
+                },
+            )
+            self.assertEqual(descriptor["key"], key)
+            self.assertEqual(descriptor["outbound"][0]["state"], state)
+
     def test_accept_list_keeps_only_mime_types(self):
         descriptor = channel.clean_descriptor(
             "messenger",

@@ -19,7 +19,7 @@ import {
   type ShallowRef,
 } from "vue";
 import {
-  hasAwaitingReceiptRows,
+  hasOpenReceiptWatch,
   hasPendingRows,
   replyStorageKey,
   resolveReplyChannel,
@@ -155,7 +155,7 @@ function shouldPoll(entry: Entry) {
     hasPendingRows(descriptor?.outbound) ||
     Boolean(entry.snapshot.value.pending) ||
     (Date.now() < entry.receiptWatchUntil &&
-      hasAwaitingReceiptRows(descriptor?.outbound))
+      hasOpenReceiptWatch(descriptor?.outbound, descriptor?.key))
   );
 }
 

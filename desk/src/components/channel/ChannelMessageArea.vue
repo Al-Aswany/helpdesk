@@ -173,9 +173,11 @@ const view = computed(() =>
     : null
 );
 
-// "Accepted" is the normal outcome and its caveat is in the badge tooltip.
+// Accepted, Delivered and Seen keep their explanation on the badge tooltip.
 const showDetail = computed(
-  () => view.value && view.value.state !== "Accepted"
+  () =>
+    view.value &&
+    !["Accepted", "Delivered", "Read"].includes(view.value.state)
 );
 const detailClass = computed(() => {
   switch (view.value?.tone) {

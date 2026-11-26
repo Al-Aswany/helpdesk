@@ -172,6 +172,24 @@ export function hasAwaitingReceiptRows(
   );
 }
 
+/**
+ * Whether a just-sent row should keep the existing receipt poll running.
+ * Messenger stops at Delivered. WhatsApp may still advance from Delivered to
+ * Seen, so that state stays open until the watch window ends. Instagram never
+ * leaves Accepted.
+ */
+export function hasOpenReceiptWatch(
+  rows: OutboundRow[] | null | undefined,
+  channelKey?: string | null
+) {
+  if (!rows?.length) return false;
+  return rows.some((row) => {
+    const state = row.state || "";
+    if (AWAITING_RECEIPT_STATES.includes(state)) return true;
+    return channelKey === "whatsapp" && state === "Delivered";
+  });
+}
+
 export function findRowByRequestKey(
   rows: OutboundRow[] | null | undefined,
   requestKey: string | null | undefined
@@ -195,8 +213,8 @@ export interface OutboundView {
 
 /**
  * What the agent sees for one outbound row. "Accepted" means the provider took
- * the message. It does not claim delivery or a read receipt, which the backend
- * does not report.
+ * the message and a delivery receipt may still arrive. "Delivered" and "Read"
+ * are receipt states: the badge for "Read" says "Seen".
  */
 export function outboundView(
   row: OutboundRow,
@@ -237,16 +255,18 @@ export function outboundView(
         row,
         "Delivered",
         "green",
-        "Delivered to the customer's phone.",
+        providerLabel === "WhatsApp"
+          ? "Delivered to the customer's phone."
+          : "Delivered to the customer.",
         false,
         false
       );
     case "Read":
       return view(
         row,
-        "Read",
+        "Seen",
         "green",
-        "The customer has read this message.",
+        "Seen by the customer.",
         false,
         false
       );
