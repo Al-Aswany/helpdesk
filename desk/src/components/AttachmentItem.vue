@@ -1,5 +1,5 @@
 <template>
-  <span>
+  <span class="inline-flex max-w-full flex-col items-start gap-1">
     <a :href="preview ? undefined : url" target="_blank">
       <Button
         :label="label"
@@ -15,6 +15,12 @@
         </template>
       </Button>
     </a>
+    <audio
+      v-if="audioSrc"
+      controls
+      preload="metadata"
+      :src="audioSrc"
+    />
     <Dialog v-model:open="showDialog" :title="label" size="4xl">
       <template #default>
         <div
@@ -40,6 +46,10 @@
 </template>
 
 <script setup lang="ts">
+import {
+  isInlineAudioAttachment,
+  sameOriginFileUrl,
+} from "@/audioAttachment";
 import { Button, Dialog } from "frappe-ui";
 import { getType as getMime } from "mime";
 import { markRaw, ref, type Component } from "vue";
@@ -108,8 +118,10 @@ function getKind(mime: string): AttachmentKind {
 
 const showDialog = ref(false);
 const mimeType = getMime(props.label) || "";
+const voice = isInlineAudioAttachment(props.label);
 const icon = ICONS[getKind(mimeType)];
-const preview = props.url ? PREVIEWS[mimeType] : undefined;
+const preview = !voice && props.url ? PREVIEWS[mimeType] : undefined;
+const audioSrc = voice ? sameOriginFileUrl(props.url) : null;
 const content = ref("");
 
 function toggleDialog() {
