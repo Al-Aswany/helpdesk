@@ -1,3 +1,4 @@
+import { isSyntheticContactEmail } from "@/syntheticContactEmail";
 import { capture } from "@/telemetry";
 import { __ } from "@/translation";
 import type {
@@ -69,10 +70,12 @@ type PhoneRow = { phone: string; isPrimary: boolean };
 // place so the hydrate watch, resetState, and the dirty check can never drift.
 function emailRowsFromDoc(doc?: Contact): EmailRow[] {
   return sortByPrimary(
-    (doc?.email_ids || []).map((e: any) => ({
-      email_id: e.email_id,
-      isPrimary: Boolean(e.is_primary),
-    }))
+    (doc?.email_ids || [])
+      .filter((e: any) => !isSyntheticContactEmail(e.email_id))
+      .map((e: any) => ({
+        email_id: e.email_id,
+        isPrimary: Boolean(e.is_primary),
+      }))
   );
 }
 
@@ -223,11 +226,17 @@ export function useContact(name: string) {
       if (!data.doc.first_name?.trim()) {
         throw new Error(__("First name is required"));
       }
-      if (!data.doc.email_ids.length) {
+      const keepsTechnicalIdentity = (doc.doc?.email_ids || []).some((row) =>
+        isSyntheticContactEmail(row.email_id)
+      );
+      if (!data.doc.email_ids.length && !keepsTechnicalIdentity) {
         throw new Error(__("At least one email address is required"));
       }
       for (const e of data.doc.email_ids) {
-        if (!validateEmailWithZod(e.email_id)) {
+        if (
+          isSyntheticContactEmail(e.email_id) ||
+          !validateEmailWithZod(e.email_id)
+        ) {
           throw new Error(__("Invalid email address: {0}", [e.email_id]));
         }
       }

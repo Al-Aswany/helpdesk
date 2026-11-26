@@ -182,6 +182,7 @@ import TicketHashIcon from "@/components/icons/TicketHashIcon.vue";
 //@ts-ignore
 import EditContactDialog from "@/components/contact/EditContactDialog.vue";
 import MergeContactDialog from "@/components/contact/MergeContactDialog.vue";
+import { customerFacingEmail } from "@/syntheticContactEmail";
 import { useAuthStore } from "@/stores/auth";
 import LayoutHeader from "@/components/LayoutHeader.vue";
 import PageInfo from "@/components/PageInfo.vue";
@@ -285,6 +286,14 @@ function scheduleRefresh() {
 }
 watch(ziwoHistoryVersion, scheduleRefresh);
 onBeforeUnmount(() => clearTimeout(refreshTimer));
+const shownEmail = computed(() =>
+  customerFacingEmail(
+    contact.doc?.email_id,
+    (contact.doc?.email_ids || []).map(
+      (row: { email_id?: string }) => row.email_id || ""
+    )
+  )
+);
 const phones = computed(() => {
   const numbers = (contact.doc?.phone_nos || [])
     .map((row: { phone?: string }) => (row.phone || "").trim())
@@ -340,8 +349,8 @@ const contactInfo = computed(() => {
   const info = [
     {
       icon: markRaw(LucideMail),
-      value: contact.doc?.email_id,
-      condition: !!contact.doc?.email_id,
+      value: shownEmail.value,
+      condition: !!shownEmail.value,
     },
     {
       icon: markRaw(LucidePhone),
@@ -405,7 +414,7 @@ const dropdownActions = computed(() => {
       label: __("Invite as User"),
       icon: "lucide-user-plus",
       onClick: async () => {
-        await inviteAsUser(props.id, contact.doc?.email_id);
+        await inviteAsUser(props.id, shownEmail.value);
         contactInfoResource.reload();
       },
     });
@@ -419,7 +428,7 @@ const dropdownActions = computed(() => {
           invitation.value!.name,
           invitation.value!.status,
           props.id,
-          contact.doc?.email_id
+          shownEmail.value
         );
         contactInfoResource.reload();
       },

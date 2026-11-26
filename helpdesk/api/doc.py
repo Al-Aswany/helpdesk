@@ -145,6 +145,10 @@ def get_list_data(
     elif doctype == "HD Ticket" and channel_fieldname:
         for row in data:
             row["_ticket_channel"] = channel_presentation(row.get(channel_fieldname))
+    elif doctype == "Contact":
+        from helpdesk.api.contact import mask_synthetic_contact_emails
+
+        mask_synthetic_contact_emails(data)
 
     fields = frappe.get_meta(doctype).fields
     fields = [field for field in fields if field.fieldtype not in no_value_fields]

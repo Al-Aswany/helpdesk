@@ -6,7 +6,7 @@ from frappe.core.api.user_invitation import invite_by_email
 from frappe.desk.reportview import delete_bulk
 from frappe.model.rename_doc import rename_doc
 
-from helpdesk.api.channel import is_technical_identity
+from helpdesk.api.channel import customer_facing_email, is_synthetic_contact_email
 from frappe.utils import validate_phone_number_with_country_code
 
 from helpdesk.utils import (
@@ -67,9 +67,7 @@ def find_contacts(txt: str = "") -> list[dict]:
         limit_page_length=10,
     )
     # Channel contacts carry a placeholder address that means nothing to an agent.
-    for row in rows:
-        if is_technical_identity(row.email_id):
-            row.email_id = ""
+    mask_synthetic_contact_emails(rows)
     return rows
 
 
@@ -240,12 +238,7 @@ def edit_contact(name: str, doc: dict):
 
     email_ids = doc.get("email_ids")
     if email_ids is not None:
-        contact_doc.email_ids = []
-        for e in email_ids:
-            contact_doc.append(
-                "email_ids",
-                {"email_id": e.get("email_id"), "is_primary": e.get("is_primary")},
-            )
+        _replace_contact_emails(contact_doc, email_ids)
 
     phone_nos = doc.get("phone_nos")
     if phone_nos is not None:
@@ -342,3 +335,76 @@ def get_invitation(name: str, email: str | None) -> dict | None:
         as_dict=True,
         order_by="creation desc",
     )
+
+
+def mask_synthetic_contact_emails(rows) -> None:
+    """Hide a channel identity in a list response, or show a real mailbox beside it.
+
+    The database row is not changed. ``Contact.email_id`` stays the technical
+    address so ticket requester lookup and deduplication keep working.
+    """
+    if not rows:
+        return
+    pending = [
+        row
+        for row in rows
+        if "email_id" in row and is_synthetic_contact_email(row.get("email_id"))
+    ]
+    real_by_contact = {}
+    names = [row.get("name") for row in pending if row.get("name")]
+    if names:
+        children = frappe.get_all(
+            "Contact Email",
+            filters={"parent": ["in", names], "parenttype": "Contact"},
+            fields=["parent", "email_id", "idx"],
+            order_by="idx asc",
+            limit=max(len(names) * 10, 20),
+        )
+        for child in children:
+            if child.parent in real_by_contact:
+                continue
+            if child.email_id and not is_synthetic_contact_email(child.email_id):
+                real_by_contact[child.parent] = child.email_id
+    for row in pending:
+        row["email_id"] = customer_facing_email(real_by_contact.get(row.get("name"), ""))
+
+
+def _replace_contact_emails(contact_doc, submitted) -> None:
+    """Save the agent's mailbox edits and keep every technical identity row.
+
+    A technical address stays primary when it already is, so ``Contact.email_id``
+    does not move off the value channel tickets use as ``raised_by``.
+    """
+    existing_technical = [
+        row
+        for row in list(contact_doc.email_ids or [])
+        if is_synthetic_contact_email(row.email_id)
+    ]
+    real = []
+    seen = set()
+    for item in submitted or []:
+        if not isinstance(item, dict):
+            continue
+        address = (item.get("email_id") or "").strip()
+        if not address or is_synthetic_contact_email(address):
+            continue
+        key = address.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        real.append({"email_id": address, "is_primary": 1 if item.get("is_primary") else 0})
+    if any(row.is_primary for row in existing_technical):
+        for item in real:
+            item["is_primary"] = 0
+    elif real and not any(item["is_primary"] for item in real):
+        real[0]["is_primary"] = 1
+    contact_doc.email_ids = []
+    for row in existing_technical:
+        contact_doc.append(
+            "email_ids",
+            {"email_id": row.email_id, "is_primary": row.is_primary},
+        )
+    for item in real:
+        contact_doc.append("email_ids", item)
+
+

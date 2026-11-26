@@ -70,6 +70,50 @@ def is_technical_identity(address: str | None) -> bool:
     return bool(address) and str(address).strip().lower().endswith(TECHNICAL_SUFFIX)
 
 
+# Contacts created for a channel or the Inchaa platform. The address is stored
+# for identity and deduplication. It is not a mailbox, so the Contacts UI hides it.
+# Match these domains only: a local part such as "wa-" or "c-" on any other
+# domain is a real customer address.
+SYNTHETIC_CONTACT_DOMAINS = frozenset(
+    {
+        "platform.inchaa.invalid",
+        "fb.inchaa.invalid",
+        "ig.inchaa.invalid",
+        "wa.inchaa.invalid",
+    }
+)
+
+
+def _bare_email(address: str | None) -> str:
+    text = str(address or "").strip().lower()
+    if "<" in text and text.endswith(">"):
+        text = text.rsplit("<", 1)[-1].rstrip(">").strip()
+    return text
+
+
+def is_synthetic_contact_email(address: str | None) -> bool:
+    """True when the address is one of the verified non-routable identity domains."""
+    email = _bare_email(address)
+    if email.count("@") != 1:
+        return False
+    return email.rsplit("@", 1)[1].rstrip(".") in SYNTHETIC_CONTACT_DOMAINS
+
+
+def customer_facing_email(primary: str | None, others: list[str] | None = None) -> str:
+    """The mailbox an agent should see. A technical identity is left blank."""
+    candidates: list[str] = []
+    if primary:
+        candidates.append(str(primary).strip())
+    for item in others or []:
+        text = str(item or "").strip()
+        if text and text not in candidates:
+            candidates.append(text)
+    for address in candidates:
+        if address and not is_synthetic_contact_email(address):
+            return address
+    return ""
+
+
 def registered_providers() -> dict[str, str]:
     """``{key: module path}`` from hooks. Malformed entries are ignored."""
     declared = frappe.get_hooks(HOOK) or {}
