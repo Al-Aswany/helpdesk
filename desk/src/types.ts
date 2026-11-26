@@ -829,6 +829,8 @@ export interface ContactPhoneEntry {
 export interface EditContactState {
   firstName: string;
   lastName: string;
+  companyName: string;
+  designation: string;
   image: string;
   emails: ContactEmailEntry[];
   phones: ContactPhoneEntry[];

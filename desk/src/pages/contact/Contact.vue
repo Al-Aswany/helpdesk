@@ -32,7 +32,7 @@
             <Button
               variant="subtle"
               @click="showEditDialog = true"
-              v-if="hasPermission()"
+              v-if="isAgent"
             >
               <div class="flex gap-1 items-center">
                 <LucideSquarePen class="h-4 w-4" />
@@ -269,7 +269,7 @@ const outreach = createResource({
   auto: true,
 });
 const outcomeOpen = ref(false);
-const { isManager } = useAuthStore();
+const { isManager, isAgent } = useAuthStore();
 const showMergeDialog = ref(false);
 const outcomeCall = ref<any>(null);
 
