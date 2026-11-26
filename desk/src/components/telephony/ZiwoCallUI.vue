@@ -1190,9 +1190,9 @@ async function makeOutgoingCall(
 }
 
 function onHangup() {
-  const call = focus.value;
-  if (!call || !canEnd.value) return;
-  act(controller.hangup(call.callId));
+  const activeCall = focus.value;
+  if (!activeCall || !canEnd.value) return;
+  act(controller.hangup(activeCall.callId));
 }
 
 async function findCallerContacts() {
@@ -1235,8 +1235,8 @@ async function addNumberTo(callId: string, contact: string) {
 }
 
 async function useContact(callId: string, contact: string) {
-  const call = view.value.calls.find((item) => item.callId === callId);
-  const callLog = call?.logName || "";
+  const activeCall = view.value.calls.find((item) => item.callId === callId);
+  const callLog = activeCall?.logName || "";
   const held = draftFor(callId);
   if (!callLog) return;
   held.logName = callLog;
@@ -1248,10 +1248,10 @@ async function useContact(callId: string, contact: string) {
 }
 
 async function linkTicket() {
-  const call = focus.value;
-  if (!call) return;
-  const callId = call.callId;
-  const callLog = call.logName;
+  const activeCall = focus.value;
+  if (!activeCall) return;
+  const callId = activeCall.callId;
+  const callLog = activeCall.logName;
   const held = drafts.get(callId);
   const ticket = held?.pending?.name || "";
   if (!held || held.linking || !callLog || !ticket) return;
@@ -1270,10 +1270,10 @@ async function linkTicket() {
 }
 
 async function onSearch() {
-  const call = focus.value;
-  if (!call) return;
-  const callId = call.callId;
-  const callLog = call.logName;
+  const activeCall = focus.value;
+  if (!activeCall) return;
+  const callId = activeCall.callId;
+  const callLog = activeCall.logName;
   const held = drafts.get(callId);
   if (!held || held.searching || !callLog) return;
   const query = held.searchQuery;
@@ -1296,16 +1296,16 @@ async function onSearch() {
 }
 
 async function onCreate() {
-  const call = focus.value;
-  if (!call) return;
-  const callId = call.callId;
-  const callLog = call.logName;
+  const activeCall = focus.value;
+  if (!activeCall) return;
+  const callId = activeCall.callId;
+  const callLog = activeCall.logName;
   const held = drafts.get(callId);
   if (!held || held.creating || !callLog) return;
   const subject = held.subject;
   const description = held.summary;
   const values = { ...held.fields };
-  const callerName = unknownCaller(call) ? held.callerName : "";
+  const callerName = unknownCaller(activeCall) ? held.callerName : "";
   held.logName = callLog;
   held.creating = true;
   held.error = "";
@@ -1325,10 +1325,10 @@ async function onCreate() {
 }
 
 async function saveNote() {
-  const call = focus.value;
-  const ticket = call?.ticket;
-  if (!call || !ticket) return;
-  const callId = call.callId;
+  const activeCall = focus.value;
+  const ticket = activeCall?.ticket;
+  if (!activeCall || !ticket) return;
+  const callId = activeCall.callId;
   const held = drafts.get(callId);
   if (!held || held.savingNote || !held.note.trim()) return;
   const text = held.note;
