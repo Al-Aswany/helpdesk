@@ -155,9 +155,9 @@ test("each form action fires once: a submit button with no extra click handler",
 
 test("ending a call goes through the controller with that call's own id", () => {
   const body = code(panel);
-  assert.match(body, /controller\.hangup\(call\.callId\)/);
+  assert.match(body, /controller\.hangup\(activeCall\.callId\)/);
   assert.match(panel, /Ending…/);
-  assert.match(body, /if \(!call \|\| !canEnd\.value\) return;/);
+  assert.match(body, /if \(!activeCall \|\| !canEnd\.value\) return;/);
   assert.equal(
     /controller\.(answer|reject|toggleMute|toggleHold|sendDtmf)\(/.test(body),
     false
@@ -726,7 +726,7 @@ test("events that did not reach Helpdesk stay visible while ZIWO's own panel is 
 
 test("ticket work stays on the call it was started for, and the frame is not rebuilt", () => {
   const body = code(panel);
-  assert.match(body, /const callLog = call\.logName/);
+  assert.match(body, /const callLog = activeCall\.logName/);
   assert.match(body, /controller\.linkTicket\(callId, ticket, \{ callLog \}\)/);
   assert.match(body, /controller\.createTicket\(\s*callId,/);
   assert.match(body, /\{ callLog \}/);
@@ -827,7 +827,7 @@ test("Call Logs and call cards label missed calls and the Missed filter asks the
 test("an unknown caller's ticket form asks for an optional caller name", () => {
   const source = code(panel);
   assert.match(source, /v-if="unknownCaller\(focus\)"\s*v-model="draft\.callerName"/);
-  assert.match(source, /const callerName = unknownCaller\(call\) \? held\.callerName : "";/);
+  assert.match(source, /const callerName = unknownCaller\(activeCall\) \? held\.callerName : "";/);
   assert.match(code(controller), /caller_name: fields\.callerName \?\? ""/);
 });
 
@@ -886,4 +886,39 @@ test("the outreach summary joins its sentences with a space in script", () => {
   assert.match(summary, /\{\{ text \}\}/);
   // No sentence is left to the template, which dropped the spaces between them.
   assert.doesNotMatch(summary, /<template v-if=/);
+});
+
+test("saveNote posts an internal comment through frappe-ui call and does not shadow it", () => {
+  const body = code(panel);
+  const start = body.indexOf("async function saveNote()");
+  const end = body.indexOf("\nconst liveCalls", start);
+  assert.ok(start > 0 && end > start, "saveNote() is in the panel");
+  const save = body.slice(start, end);
+
+  assert.match(save, /const activeCall = focus\.value;/);
+  assert.equal(
+    /\b(?:const|let|var)\s+call\b|function\s+saveNote\s*\([^)]*\bcall\b/.test(save),
+    false,
+    "saveNote redeclares call"
+  );
+  assert.match(save, /await call\(\s*"run_doc_method",/);
+  assert.match(save, /dt:\s*"HD Ticket"/);
+  assert.match(save, /dn:\s*ticket/);
+  assert.match(save, /method:\s*"new_comment"/);
+  assert.match(save, /content:\s*internalNoteHtml\(text\)/);
+  assert.match(save, /attachments:\s*\[\]/);
+  assert.equal(/reply_via_agent|send_reply/.test(save), false);
+
+  // The same import must stay reachable in every other panel function.
+  const script = body.slice(body.indexOf("<script")).replace(/^import\s.+;$/gm, "");
+  assert.match(body, /import \{[^}]*\bcall\b[^}]*\btoast\b[^}]*\} from "frappe-ui"/);
+  assert.equal(/\b(?:const|let|var|function)\s+(?:call|toast)\b/.test(script), false);
+  assert.equal(/function\s+\w+\s*\([^)]*\b(?:call|toast)\b/.test(script), false);
+  assert.equal(/\(\s*(?:call|toast)\s*[,)]|,\s*(?:call|toast)\s*[,)]/.test(script), false);
+
+  const twilio = code(read("components/telephony/TwilioCallUI.vue"));
+  const twilioScript = twilio.slice(twilio.indexOf("<script")).replace(/^import\s.+;$/gm, "");
+  assert.match(twilioScript, /function handleIncomingCall\(incoming\)/);
+  assert.equal(/\b(?:const|let|var|function)\s+(?:call|toast)\b/.test(twilioScript), false);
+  assert.equal(/function\s+\w+\s*\([^)]*\b(?:call|toast)\b/.test(twilioScript), false);
 });

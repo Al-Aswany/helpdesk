@@ -289,17 +289,17 @@ function toggleMute() {
   }
 }
 
-function handleIncomingCall(call) {
-  log.value = `Incoming call from ${call.parameters.From}`;
-  phoneNumber.value = call.parameters.From;
+function handleIncomingCall(incoming) {
+  log.value = `Incoming call from ${incoming.parameters.From}`;
+  phoneNumber.value = incoming.parameters.From;
 
   showCallPopup.value = true;
-  _call = call;
+  _call = incoming;
 
   // add event listener to call object
-  call.on("cancel", handleDisconnectedIncomingCall);
-  call.on("disconnect", handleDisconnectedIncomingCall);
-  call.on("reject", handleDisconnectedIncomingCall);
+  incoming.on("cancel", handleDisconnectedIncomingCall);
+  incoming.on("disconnect", handleDisconnectedIncomingCall);
+  incoming.on("reject", handleDisconnectedIncomingCall);
 }
 
 async function acceptIncomingCall() {
