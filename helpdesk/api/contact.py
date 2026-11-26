@@ -66,6 +66,7 @@ def find_contacts(txt: str = "") -> list[dict]:
         order_by="modified desc",
         limit_page_length=10,
     )
+    rows = _without_internal_staff_contacts(rows)
     # Channel contacts carry a placeholder address that means nothing to an agent.
     mask_synthetic_contact_emails(rows)
     return rows
@@ -256,6 +257,11 @@ def edit_contact(name: str, doc: dict):
                 },
             )
 
+    if "company_name" in doc:
+        contact_doc.company_name = (doc.get("company_name") or "").strip()
+    if "designation" in doc:
+        contact_doc.designation = (doc.get("designation") or "").strip()
+
     contact_doc.save()
 
     if user := contact_doc.get("user"):
@@ -335,6 +341,21 @@ def get_invitation(name: str, email: str | None) -> dict | None:
         as_dict=True,
         order_by="creation desc",
     )
+
+
+
+def _without_internal_staff_contacts(rows):
+    """Drop contacts linked to a System User from an agent search result."""
+    if not rows:
+        return rows
+    try:
+        from inchaa_custmization.integrations.contact_access import system_user_contact_names
+    except ImportError:
+        return rows
+    hidden = system_user_contact_names([row.get("name") for row in rows if row.get("name")])
+    if not hidden:
+        return rows
+    return [row for row in rows if row.get("name") not in hidden]
 
 
 def mask_synthetic_contact_emails(rows) -> None:

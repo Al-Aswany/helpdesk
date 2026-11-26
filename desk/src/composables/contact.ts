@@ -102,6 +102,8 @@ const withKeys = <T>(rows: T[]) =>
 function applyDocToState(state: EditContactState, doc?: Contact): void {
   state.firstName = doc?.first_name || "";
   state.lastName = doc?.last_name || "";
+  state.companyName = doc?.company_name || "";
+  state.designation = doc?.designation || "";
   state.image = doc?.image || "";
   state.emails = withKeys(emailRowsFromDoc(doc));
   state.phones = withKeys(phoneRowsFromDoc(doc));
@@ -169,6 +171,8 @@ export function useContact(name: string) {
     return (
       state.firstName !== (doc.doc?.first_name || "") ||
       state.lastName !== (doc.doc?.last_name || "") ||
+      state.companyName !== (doc.doc?.company_name || "") ||
+      state.designation !== (doc.doc?.designation || "") ||
       state.image !== (doc.doc?.image || "") ||
       state.timezone !== savedTimezone ||
       JSON.stringify(currentEmails) !==
@@ -202,6 +206,8 @@ export function useContact(name: string) {
     return {
       first_name: state.firstName,
       last_name: state.lastName,
+      company_name: state.companyName,
+      designation: state.designation,
       image: state.image,
       email_ids: state.emails
         .filter((e) => e.email_id)
@@ -383,6 +389,8 @@ export function useContactState(
     const state = reactive<EditContactState>({
       firstName: "",
       lastName: "",
+      companyName: "",
+      designation: "",
       image: "",
       emails: [],
       phones: [],

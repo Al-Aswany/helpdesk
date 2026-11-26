@@ -44,6 +44,20 @@
               v-model="state.lastName"
             />
           </div>
+          <div class="grid grid-cols-2 gap-4">
+            <FormControl
+              :label="__('Company Name')"
+              type="text"
+              :placeholder="__('Company name')"
+              v-model="state.companyName"
+            />
+            <FormControl
+              :label="__('Designation')"
+              type="text"
+              :placeholder="__('Designation')"
+              v-model="state.designation"
+            />
+          </div>
           <!-- Email IDs -->
           <div class="space-y-1.5">
             <label class="block text-base text-ink-gray-5">
