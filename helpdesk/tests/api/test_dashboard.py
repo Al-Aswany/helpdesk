@@ -1,4 +1,5 @@
 import json
+from unittest.mock import patch
 
 import frappe
 from frappe import _
@@ -17,6 +18,7 @@ from helpdesk.test_utils import (
     make_team,
     make_ticket,
     unique_email,
+    unique_name,
 )
 
 AGENT = "dashboard-sla-agent@example.com"
@@ -274,3 +276,153 @@ class TestTagDashboard(FrappeTestCase):
     @staticmethod
     def top_tag_counts(charts: dict[str, dict]) -> dict[str, int]:
         return {row["tag"]: row["Tickets"] for row in charts["top_tags"]["data"]}
+
+
+
+class TestTicketsByChannel(FrappeTestCase):
+    """Tickets by Channel uses the source channel before Portal or Email."""
+
+    def setUp(self):
+        self.manager = make_agent_manager("channel-dash-manager")
+        self.agent = create_agent(unique_email("channel-dash-agent")).name
+        self.other = create_agent(unique_email("channel-dash-other")).name
+        self.team = make_team(unique_name("Channel Team"), [self.agent, self.other]).name
+        self.other_team = make_team(unique_name("Other Channel Team"), [self.other]).name
+        self.day = "2034-04-02"
+        self.assertNotIn(self.agent, self.other)
+        self.assertNotIn(self.other, self.agent)
+
+    def test_source_channel_wins_over_portal_and_email(self):
+        self.assertTrue(
+            frappe.db.has_column("HD Ticket", "inchaa_source_channel"),
+            "HD Ticket.inchaa_source_channel is required for channel slices",
+        )
+        for _ in range(3):
+            self.make(f"{self.day} 10:00:00", "WhatsApp", 0)
+        self.make(f"{self.day} 10:05:00", " WhatsApp ", 1)
+        self.make(f"{self.day} 10:10:00", None, 0)
+        self.make(f"{self.day} 10:15:00", "   ", 0)
+        for _ in range(2):
+            self.make(f"{self.day} 11:00:00", "Instagram", 0)
+        for _ in range(2):
+            self.make(f"{self.day} 12:00:00", "Messenger", 1)
+        self.make(f"{self.day} 13:00:00", "", 1)
+        self.make(f"{self.day} 13:05:00", None, 1)
+        self.make(f"{self.day} 14:00:00", "Inchaa Platform", 1)
+        self.make(f"{self.day} 15:00:00", "Phone", 0)
+        self.make("2034-04-01 23:59:59", "Should Not Appear", 0)
+        self.make(f"{self.day} 16:00:00", "WhatsApp", 0, team=self.other_team)
+
+        chart = self.chart(team=self.team)
+        self.assert_counts(
+            chart,
+            {
+                "WhatsApp": 4,
+                "Email": 2,
+                "Instagram": 2,
+                "Messenger": 2,
+                "Portal": 2,
+                "Inchaa Platform": 1,
+                "Phone": 1,
+            },
+        )
+
+    def test_date_and_team_filters_limit_the_counts(self):
+        self.make(f"{self.day} 00:00:00", "Phone", 0)
+        self.make(f"{self.day} 23:59:59", "Phone", 0)
+        self.make(f"{self.day} 10:00:00", "WhatsApp", 0)
+        self.make("2034-04-01 23:59:59", "Instagram", 0)
+        self.make("2034-04-03 00:00:00", "Messenger", 0)
+        self.make(f"{self.day} 10:00:00", "Inchaa Platform", 0, team=self.other_team)
+
+        self.assert_counts(
+            self.chart(team=self.team),
+            {"Phone": 2, "WhatsApp": 1},
+        )
+
+    def test_agent_sees_assigned_tickets_only(self):
+        self.make(f"{self.day} 10:00:00", "WhatsApp", 0, agent=self.agent)
+        self.make(f"{self.day} 11:00:00", "Messenger", 0, agent=self.other)
+        self.make(f"{self.day} 12:00:00", "Phone", 0, agent=self.agent)
+
+        with self.set_user(self.agent):
+            with self.assertRaises(frappe.PermissionError):
+                get_dashboard_data(
+                    "master",
+                    {
+                        "from_date": self.day,
+                        "to_date": self.day,
+                        "team": self.team,
+                        "agent": self.agent,
+                    },
+                )
+
+        self.assert_counts(
+            self.chart(agent=self.agent, user=self.agent),
+            {"WhatsApp": 1, "Phone": 1},
+        )
+
+    def test_customer_cannot_view_channel_chart(self):
+        customer = create_contact("Channel Customer", unique_email("channel-dash"))
+        with self.set_user(customer["user"]):
+            with self.assertRaises(frappe.PermissionError):
+                get_dashboard_data(
+                    "master",
+                    {
+                        "from_date": self.day,
+                        "to_date": self.day,
+                        "agent": customer["user"],
+                    },
+                )
+
+    def test_missing_source_column_falls_back_to_portal_and_email(self):
+        self.make(f"{self.day} 10:00:00", "WhatsApp", 0)
+        self.make(f"{self.day} 11:00:00", "WhatsApp", 1)
+        self.make(f"{self.day} 12:00:00", None, 1)
+        self.make(f"{self.day} 13:00:00", None, 0)
+        with patch(
+            "helpdesk.api.dashboard._hd_ticket_has_source_channel",
+            return_value=False,
+        ):
+            chart = self.chart(team=self.team)
+        self.assert_counts(chart, {"Portal": 2, "Email": 2})
+
+    def make(self, when, channel, portal, team=None, agent=None):
+        with self.freeze_time(when):
+            ticket = make_ticket(subject="Channel chart", via_customer_portal=portal)
+        values = {"agent_group": team or self.team}
+        if agent:
+            values["_assign"] = json.dumps([agent])
+        if channel is not None:
+            values["inchaa_source_channel"] = channel
+        frappe.db.set_value("HD Ticket", ticket.name, values, update_modified=False)
+        return ticket
+
+    def chart(self, team=None, agent=None, user=None):
+        filters = {"from_date": self.day, "to_date": self.day}
+        if team:
+            filters["team"] = team
+        if agent:
+            filters["agent"] = agent
+        with self.set_user(user or self.manager):
+            charts = get_dashboard_data("master", filters)
+        return next(chart for chart in charts if chart["key"] == "tickets_by_channel")
+
+    def assert_counts(self, chart, expected):
+        actual = {row["channel"]: row["count"] for row in chart["data"]}
+        self.assertEqual(actual, expected)
+        self.assertEqual(
+            [(row["channel"], row["count"]) for row in chart["data"]],
+            sorted(expected.items(), key=lambda item: (-item[1], item[0])),
+        )
+        total = sum(expected.values())
+        self.assertEqual(sum(actual.values()), total)
+        self.assertAlmostEqual(
+            sum(count / total * 100 for count in actual.values()),
+            100.0,
+        )
+        self.assertEqual(chart["type"], "donut")
+        self.assertEqual(chart["category"], "channel")
+        self.assertEqual(chart["value"], "count")
+        self.assertEqual(chart["maxSlices"], 12)
+        self.assertNotIn("Should Not Appear", actual)

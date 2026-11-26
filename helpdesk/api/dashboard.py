@@ -1,3 +1,4 @@
+import datetime
 import math
 import operator
 from functools import reduce
@@ -6,6 +7,8 @@ import frappe
 from frappe import _
 from frappe.query_builder import DocType
 from frappe.query_builder.functions import Avg, Count, Function
+from frappe.utils import cint
+from frappe.utils.data import convert_type_for_between_filters
 from pypika import Case
 
 from helpdesk.utils import agent_only, is_frappe_version
@@ -583,24 +586,28 @@ def get_ticket_priority_chart_data(
         )
 
 
+# Filters this chart applies itself. Anything else still has to be honored, so
+# those shapes go through the same `get_all` call the other master charts use.
+_CHANNEL_SQL_FILTERS = {"creation", "agent_group", "_assign"}
+# DonutChart folds the tail past this into "Others". The named channels
+# (WhatsApp, Messenger, Instagram, Inchaa Platform, Phone, Portal, Email)
+# need to stay visible together.
+_CHANNEL_MAX_SLICES = 12
+
+
 def get_ticket_channel_chart_data(
     from_date: str, to_date: str, filters: dict[str, any] = None
 ) -> dict[str, any]:
     """
     Get ticket channel chart data for the dashboard.
+
+    A non-blank `inchaa_source_channel` wins when that column exists. Otherwise
+    portal tickets are "Portal" and everything else is "Email". `filters` is the
+    same date, team, and assignee scope the other master charts pass to
+    `frappe.get_all`; the counts stay inside that scope.
     """
-    result = frappe.get_all(
-        HD_TICKET,
-        fields=["via_customer_portal as channel ", COUNT_NAME],
-        filters=filters,
-        group_by="via_customer_portal",
-        order_by="via_customer_portal desc",
-    )
-
-    for row in result:
-        row.channel = "Portal" if row.channel == 1 else "Email"
-
-    return get_pie_chart_config(
+    result = ticket_channel_counts(filters or {})
+    chart = get_pie_chart_config(
         result,
         "tickets_by_channel",
         _("Tickets by Channel"),
@@ -608,6 +615,105 @@ def get_ticket_channel_chart_data(
         "channel",
         "count",
     )
+    chart["maxSlices"] = _CHANNEL_MAX_SLICES
+    return chart
+
+
+def ticket_channel_counts(filters: dict | None = None) -> list[dict]:
+    """Channel label and ticket count for the dashboard filters, largest first."""
+    filters = filters or {}
+    if set(filters) - _CHANNEL_SQL_FILTERS:
+        return _sort_channel_rows(_channel_counts_via_get_all(filters))
+    return _sort_channel_rows(_channel_counts_via_query(filters))
+
+
+def _hd_ticket_has_source_channel() -> bool:
+    return bool(frappe.db.has_column(HD_TICKET, "inchaa_source_channel"))
+
+
+def _channel_label(row, has_source: bool) -> str:
+    if has_source:
+        source = (row.get("inchaa_source_channel") or "").strip()
+        if source:
+            return source
+    return "Portal" if cint(row.get("via_customer_portal")) == 1 else "Email"
+
+
+def _channel_expression(ticket):
+    portal = ticket.via_customer_portal == 1
+    if not _hd_ticket_has_source_channel():
+        return Case().when(portal, "Portal").else_("Email")
+
+    trimmed = Function("TRIM", ticket.inchaa_source_channel)
+    present = Function("NULLIF", trimmed, "")
+    return Case().when(present.isnotnull(), trimmed).when(portal, "Portal").else_("Email")
+
+
+def _apply_channel_filters(query, ticket, filters: dict):
+    """Apply the dashboard's date, team, and assignee filters. Nothing wider."""
+    creation = filters.get("creation")
+    if (
+        isinstance(creation, (list, tuple))
+        and creation
+        and creation[0] == "between"
+        and isinstance(creation[1], (list, tuple))
+        and len(creation[1]) >= 2
+    ):
+        start, end = creation[1][0], creation[1][1]
+        query = query.where(
+            ticket.creation.between(
+                convert_type_for_between_filters(start, datetime.time()),
+                convert_type_for_between_filters(end, datetime.time(23, 59, 59, 999999)),
+            )
+        )
+
+    if filters.get("agent_group"):
+        query = query.where(ticket.agent_group == filters["agent_group"])
+
+    assign = filters.get("_assign")
+    if (
+        isinstance(assign, (list, tuple))
+        and assign
+        and str(assign[0]).lower() == "like"
+        and len(assign) >= 2
+    ):
+        query = query.where(ticket._assign.like(assign[1]))
+
+    return query
+
+
+def _channel_counts_via_query(filters: dict) -> list[dict]:
+    ticket = DocType(HD_TICKET)
+    channel = _channel_expression(ticket)
+    query = (
+        frappe.qb.from_(ticket)
+        .select(channel.as_("channel"), Count(ticket.name).as_("count"))
+        .groupby(channel)
+    )
+    query = _apply_channel_filters(query, ticket, filters)
+    return query.run(as_dict=True)
+
+
+def _channel_counts_via_get_all(filters: dict) -> list[dict]:
+    """Same filters as the other charts when the dict carries something else."""
+    has_source = _hd_ticket_has_source_channel()
+    fields = ["via_customer_portal"]
+    if has_source:
+        fields.append("inchaa_source_channel")
+    counts: dict[str, int] = {}
+    for row in frappe.get_all(HD_TICKET, fields=fields, filters=filters):
+        label = _channel_label(row, has_source)
+        counts[label] = counts.get(label, 0) + 1
+    return [{"channel": label, "count": count} for label, count in counts.items()]
+
+
+def _sort_channel_rows(rows: list[dict]) -> list[dict]:
+    normalized = []
+    for row in rows:
+        channel = (row.get("channel") or "").strip() or "Email"
+        normalized.append({"channel": channel, "count": int(row.get("count") or 0)})
+    normalized.sort(key=lambda row: (-row["count"], row["channel"]))
+    return normalized
 
 
 def get_pie_chart_config(
